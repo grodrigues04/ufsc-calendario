@@ -1,6 +1,7 @@
 // News inside the app: detected after each sync (and by the service worker in the background),
 // kept on the device in IndexedDB until the student dismisses them.
 
+import { useMemo } from 'react'
 import { toast } from 'sonner'
 import { create } from 'zustand'
 import { activeRecords } from '@shared/notes'
@@ -15,6 +16,8 @@ import { useUi } from './ui'
 interface InboxState {
   items: NewsItem[]
   dismiss: (key: string) => void
+  /** Leaving the "Avisos" tab marks everything as read. */
+  markAllRead: () => void
 }
 
 export const useInbox = create<InboxState>()((set, get) => ({
@@ -24,7 +27,27 @@ export const useInbox = create<InboxState>()((set, get) => ({
     set({ items })
     void kvSet('inbox', items).catch(() => {})
   },
+  markAllRead: () => {
+    if (!get().items.length) return
+    set({ items: [] })
+    void kvSet('inbox', []).catch(() => {})
+  },
 }))
+
+/** News still worth showing (an absence already noted in the Manual tab is done). */
+export function useVisibleNews(): NewsItem[] {
+  const items = useInbox((state) => state.items)
+  const notes = useNotes((state) => state.notes)
+  const semester = useApp((state) => state.student?.semester || state.sync?.semester || '')
+  return useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          item.kind !== 'absence' || !activeRecords(notes, semester, item.disciplineId).some((record) => record.date === item.date),
+      ),
+    [items, notes, semester],
+  )
+}
 
 /** Picks up news the service worker found while the app was closed. */
 export async function loadInbox(): Promise<void> {

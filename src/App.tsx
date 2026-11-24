@@ -5,7 +5,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 import { useLocation, useSearch } from 'wouter'
 import { BottomNav, type TabKey, tabFromPath } from '@/components/bottom-nav'
 import { EASE_OUT } from '@/components/tone'
-import { loadInbox } from '@/lib/inbox'
+import { loadInbox, useInbox } from '@/lib/inbox'
 import { useNotesSync } from '@/lib/notes'
 import { useApp } from '@/lib/store'
 import { useAutoSync } from '@/lib/sync'
@@ -13,6 +13,7 @@ import { useUi } from '@/lib/ui'
 import { ActivitiesScreen } from '@/screens/activities'
 import { AttendanceScreen } from '@/screens/attendance'
 import { LoginScreen } from '@/screens/login'
+import { NewsScreen } from '@/screens/news'
 import { TodayScreen } from '@/screens/today'
 
 function usePwaUpdate() {
@@ -86,8 +87,17 @@ function Shell() {
   const tab = tabFromPath(location)
   useNotificationLinks()
   useInboxLoader()
-  const positions = useRef<Record<TabKey, number>>({ hoje: 0, presenca: 0, atividades: 0 })
+  const positions = useRef<Record<TabKey, number>>({ hoje: 0, presenca: 0, atividades: 0, avisos: 0 })
   const shownTab = useRef<TabKey>(tab)
+  const previousTab = useRef<TabKey>(tab)
+
+  // Leaving "Avisos" marks the news as read: the tab gets crushed out of the bar.
+  useEffect(() => {
+    if (previousTab.current === 'avisos' && tab !== 'avisos') useInbox.getState().markAllRead()
+    // The quick toasts repeat what the "Avisos" screen shows.
+    if (tab === 'avisos') toast.dismiss()
+    previousTab.current = tab
+  }, [tab])
 
   useEffect(() => {
     const onScroll = () => {
@@ -116,6 +126,7 @@ function Shell() {
           {tab === 'hoje' && <TodayScreen />}
           {tab === 'presenca' && <AttendanceScreen />}
           {tab === 'atividades' && <ActivitiesScreen />}
+          {tab === 'avisos' && <NewsScreen />}
         </motion.main>
       </AnimatePresence>
       <BottomNav active={tab} />

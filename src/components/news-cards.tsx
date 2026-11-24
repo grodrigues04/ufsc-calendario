@@ -1,45 +1,24 @@
 import { CalendarX2, Users, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useMemo } from 'react'
-import { activeRecords } from '@shared/notes'
 import { useInbox } from '@/lib/inbox'
-import { shortDate } from '@/lib/news'
-import { useNotes } from '@/lib/notes'
-import { useApp } from '@/lib/store'
+import { type NewsItem, shortDate } from '@/lib/news'
 import { useUi } from '@/lib/ui'
 import { EASE_OUT } from './tone'
 
-const MAX_CARDS = 4
-
-/** News at the top of "Hoje": absences registered in Moodle and work sent by the student's group. */
-export function NewsCards() {
-  const items = useInbox((state) => state.items)
+/** News: absences registered in Moodle and work sent by the student's group. */
+export function NewsList({ items }: { items: NewsItem[] }) {
   const dismiss = useInbox((state) => state.dismiss)
-  const notes = useNotes((state) => state.notes)
-  const semester = useApp((state) => state.student?.semester || state.sync?.semester || '')
   const openAbsence = useUi((state) => state.openAbsence)
-  // An absence already noted in the Manual tab needs no card.
-  const visible = useMemo(
-    () =>
-      items
-        .filter(
-          (item) =>
-            item.kind !== 'absence' || !activeRecords(notes, semester, item.disciplineId).some((record) => record.date === item.date),
-        )
-        .slice(0, MAX_CARDS),
-    [items, notes, semester],
-  )
 
   return (
     <AnimatePresence initial={false}>
-      {visible.map((item) => (
+      {items.map((item, index) => (
         <motion.article
           key={item.key}
           layout
-          initial={{ opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.97 }}
-          transition={{ duration: 0.28, ease: EASE_OUT }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0, transition: { duration: 0.35, ease: EASE_OUT, delay: 0.06 + Math.min(index, 6) * 0.05 } }}
+          exit={{ opacity: 0, x: 40, transition: { duration: 0.22 } }}
           className="mb-3 flex gap-3 rounded-3xl border bg-card py-3.5 pr-2 pl-4"
         >
           <span

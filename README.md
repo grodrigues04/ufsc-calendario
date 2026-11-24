@@ -37,7 +37,7 @@ idUFSC e o app só monta a interface: não há banco de dados, os dados ficam no
   grupo. O app compara o horário do envio com o último acesso do estudante àquela disciplina
   (`lastaccess`, que só muda quando se abre uma página do Moodle): se o envio foi depois desse
   acesso, não foi ele, e o aviso aparece. Envios do próprio estudante não geram aviso.
-- **Onde aparecem**: dentro do app (cards na tela Hoje e um aviso na hora). Com o app fechado, só no
+- **Onde aparecem**: na aba **Avisos** da barra de navegação, que só aparece quando há novidades e mostra quantas são; ao sair dela, os avisos contam como lidos e a aba é "esmagada" para fora da barra. Também há um aviso rápido na hora em que chegam. Com o app fechado, só no
   Android com o app instalado: o service worker (`src/sw.ts`) usa Periodic Background Sync, e o
   Android escolhe quando acordar o app (algumas vezes por dia). O iPhone não deixa apps da web rodarem
   fechados, então lá os avisos aparecem quando o app abre.
