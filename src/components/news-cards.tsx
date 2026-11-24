@@ -53,9 +53,9 @@ export function NewsCards() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">{item.kind === 'absence' ? 'Falta lançada no Moodle' : 'Seu grupo enviou um trabalho'}</p>
-            <p className="truncate text-xs text-muted-foreground">
+            <p className="line-clamp-2 text-xs text-muted-foreground">
               {item.kind === 'absence'
-                ? `${item.disciplineName}, ${shortDate(item.date)}`
+                ? `${shortDate(item.date)} · ${item.disciplineName}`
                 : `${item.name}${item.disciplineName ? ` · ${item.disciplineName}` : ''}`}
             </p>
             {item.kind === 'absence' ? (
