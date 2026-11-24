@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from '@/components/ui/drawer'
 import { formatSyncedAgo } from '@/lib/format'
 import { useInstallPrompt } from '@/lib/install'
+import { clearNotes, flushNotes } from '@/lib/notes'
 import { useApp, useClock } from '@/lib/store'
 import { syncNow } from '@/lib/sync'
 import { useBackToClose, useUi } from '@/lib/ui'
@@ -78,17 +79,19 @@ export function ProfileDrawer() {
             variant="destructive"
             size="lg"
             className="mt-4 h-11 w-full rounded-full"
-            onClick={() => {
+            onClick={async () => {
               setOpen(false)
+              await flushNotes()
+              clearNotes()
               signOut()
-              toast('Você saiu', { description: 'Os dados foram apagados deste aparelho.' })
+              toast('Você saiu', { description: 'Os dados foram apagados deste aparelho. Suas faltas anotadas continuam salvas na sua conta.' })
             }}
           >
             <LogOut />
             Sair
           </Button>
           <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground">
-            App não oficial. Seus dados ficam só neste aparelho e sua senha nunca é guardada.
+            App não oficial. Sua senha nunca é guardada. Os dados do Moodle ficam neste aparelho; as faltas anotadas ficam criptografadas na nuvem.
           </p>
         </div>
       </DrawerContent>

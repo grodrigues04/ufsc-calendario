@@ -5,6 +5,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react'
 import { useLocation } from 'wouter'
 import { BottomNav, type TabKey, tabFromPath } from '@/components/bottom-nav'
 import { EASE_OUT } from '@/components/tone'
+import { useNotesSync } from '@/lib/notes'
 import { useApp } from '@/lib/store'
 import { useAutoSync } from '@/lib/sync'
 import { useUi } from '@/lib/ui'
@@ -98,7 +99,9 @@ function Shell() {
 
 export function App() {
   const authenticated = useApp((state) => state.auth !== null)
+  const userId = useApp((state) => state.auth?.userId ?? null)
   useAutoSync(authenticated)
+  useNotesSync(userId)
   usePwaUpdate()
 
   return (

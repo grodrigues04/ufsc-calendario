@@ -404,3 +404,49 @@ export function activityKind(activity: Activity): string {
   const label = MODULE_LABEL[activity.module] ?? (activity.module ? 'Atividade' : 'Evento')
   return activity.eventType === 'close' ? `${label} · encerra` : label
 }
+
+// ---------------------------------------------------------------- manual notes
+
+/** UFSC semesters have 18 weeks: a 4-classes-a-week discipline has 72 classes (h/a). */
+export const SEMESTER_WEEKS = 18
+
+/** Total classes of the semester, from the CAGR grid (falls back to the Moodle sessions). */
+export function semesterClasses(view: DisciplineView): number {
+  const weekly = view.schedule.reduce((total, slot) => total + slot.classes, 0)
+  return weekly > 0 ? weekly * SEMESTER_WEEKS : view.stats.totalMax
+}
+
+/** How many classes one day of this discipline usually has (missing a day = this many absences). */
+export function classesPerMeeting(view: DisciplineView): number {
+  const sizes = view.schedule.length ? view.schedule.map((slot) => slot.classes) : view.meetings.map((meeting) => meeting.classes)
+  if (!sizes.length) return 2
+  const counts = new Map<number, number>()
+  for (const size of sizes) counts.set(size, (counts.get(size) ?? 0) + 1)
+  return [...counts].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0]
+}
+
+export interface ManualStats {
+  total: number
+  allowed: number
+  absences: number
+  remaining: number
+  /** Attendance at the end of the semester counting only the noted absences. */
+  percent: number | null
+  tone: Tone
+  failed: boolean
+}
+
+export function manualStats(view: DisciplineView, absences: number): ManualStats {
+  const total = semesterClasses(view)
+  const allowed = Math.floor(total * ABSENCE_LIMIT + 1e-9)
+  const percent = total > 0 ? Math.max(0, ((total - absences) / total) * 100) : null
+  return {
+    total,
+    allowed,
+    absences,
+    remaining: allowed - absences,
+    percent,
+    tone: toneFor(percent),
+    failed: total > 0 && absences > allowed,
+  }
+}

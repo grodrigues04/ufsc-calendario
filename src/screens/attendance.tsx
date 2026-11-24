@@ -6,6 +6,7 @@ import { Segmented } from '@/components/segmented'
 import { EASE_OUT } from '@/components/tone'
 import { useDisciplines } from '@/lib/sync'
 import { DisciplinesView } from './attendance-disciplines'
+import { ManualView } from './attendance-manual'
 import { OverviewView } from './attendance-overview'
 import { SimulatorView } from './attendance-simulator'
 
@@ -13,6 +14,7 @@ const SEGMENTS = [
   { value: 'geral', label: 'Visão geral' },
   { value: 'disciplinas', label: 'Disciplinas' },
   { value: 'simulador', label: 'Simulador' },
+  { value: 'manual', label: 'Manual' },
 ] as const
 
 type Segment = (typeof SEGMENTS)[number]['value']
@@ -39,7 +41,7 @@ export function AttendanceScreen() {
 
   const go = (value: Segment) => navigate(value === 'geral' ? '/presenca' : `/presenca/${value}`, { replace: true })
 
-  // Swipe between "Visão geral" and "Disciplinas"; the simulator has its own horizontal controls.
+  // Swipe between "Visão geral" and "Disciplinas"; the simulator and the manual notes are full of controls.
   const onDragEnd = (_: PointerEvent | MouseEvent | TouchEvent, info: PanInfo) => {
     const swipe = info.offset.x + info.velocity.x * 0.15
     if (swipe < -SWIPE_DISTANCE && index < SEGMENTS.length - 1) go(SEGMENTS[index + 1].value)
@@ -59,7 +61,7 @@ export function AttendanceScreen() {
             animate="center"
             exit="exit"
             transition={{ duration: 0.28, ease: EASE_OUT }}
-            drag={segment === 'simulador' ? false : 'x'}
+            drag={segment === 'simulador' || segment === 'manual' ? false : 'x'}
             dragDirectionLock
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.18}
@@ -69,6 +71,7 @@ export function AttendanceScreen() {
             {segment === 'geral' && <OverviewView views={views} />}
             {segment === 'disciplinas' && <DisciplinesView views={views} />}
             {segment === 'simulador' && <SimulatorView views={views} />}
+            {segment === 'manual' && <ManualView views={views} />}
           </motion.div>
         </AnimatePresence>
       </div>

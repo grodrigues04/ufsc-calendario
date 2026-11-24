@@ -1,7 +1,7 @@
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 /** Serves the Vercel functions in api/ during `vite dev` (same Web Request/Response handlers). */
@@ -10,6 +10,10 @@ function apiRoutes(): Plugin {
     name: 'api-routes',
     apply: 'serve',
     configureServer(server) {
+      // The functions read DATABASE_URL and NOTES_SECRET from process.env, like on Vercel.
+      for (const [key, value] of Object.entries(loadEnv(server.config.mode, process.cwd(), ''))) {
+        process.env[key] ??= value
+      }
       server.middlewares.use(async (request, response, next) => {
         const url = new URL(request.url ?? '/', 'http://localhost')
         const match = url.pathname.match(/^\/api\/([\w-]+)$/)
