@@ -54,6 +54,10 @@ export default defineConfig({
     tailwindcss(),
     apiRoutes(),
     VitePWA({
+      // Own service worker (src/sw.ts): app shell cache plus background checks for news.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'prompt',
       includeAssets: ['favicon.ico', 'logo.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
@@ -75,13 +79,10 @@ export default defineConfig({
           { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         // Portuguese only needs the latin subset of the font.
         globIgnores: ['**/geist-{cyrillic,cyrillic-ext,vietnamese,latin-ext}-*.woff2'],
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//],
-        cleanupOutdatedCaches: true,
       },
     }),
   ],

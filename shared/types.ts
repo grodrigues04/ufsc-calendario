@@ -76,6 +76,22 @@ export interface MoodleAuth {
 
 export type AttendanceIssue = 'lockout' | 'session_failed'
 
+/** A group assignment ("envio em grupo") and whether the group already submitted it. */
+export interface GroupSubmission {
+  cmid: number
+  courseId: number
+  name: string
+  url: string
+  submitted: boolean
+  /** When the group's submission was last saved (ISO), if any. */
+  submittedAt: string | null
+  /**
+   * The student opened the discipline in Moodle after (or right before) the submission:
+   * most likely they sent it themselves. Moodle does not say who submitted a group's work.
+   */
+  likelyMine: boolean
+}
+
 export interface SyncResult {
   syncedAt: string
   semester: string | null
@@ -83,6 +99,7 @@ export interface SyncResult {
   activities: Activity[]
   /** Keyed by Moodle course id. */
   attendance: Record<number, CourseAttendance>
+  groupSubmissions: GroupSubmission[]
   session: string | null
   attendanceIssue: AttendanceIssue | null
 }

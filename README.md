@@ -29,6 +29,22 @@ idUFSC e o app só monta a interface: não há banco de dados, os dados ficam no
   conferida no web service do próprio módulo (`mod_assign_get_submission_status`,
   `mod_quiz_get_user_attempts`, grupos do curso).
 
+## Avisos
+
+- **Falta lançada no Moodle**: quando o professor registra uma falta que ainda não está na aba
+  Manual, aparece um aviso com atalho para adicioná-la (o formulário já vem com a disciplina e o dia).
+- **Trabalho em grupo enviado por outra pessoa**: o Moodle não diz quem enviou o trabalho de um
+  grupo. O app compara o horário do envio com o último acesso do estudante àquela disciplina
+  (`lastaccess`, que só muda quando se abre uma página do Moodle): se o envio foi depois desse
+  acesso, não foi ele, e o aviso aparece. Envios do próprio estudante não geram aviso.
+- **Onde aparecem**: dentro do app (cards na tela Hoje e um aviso na hora). Com o app fechado, só no
+  Android com o app instalado: o service worker (`src/sw.ts`) usa Periodic Background Sync, e o
+  Android escolhe quando acordar o app (algumas vezes por dia). O iPhone não deixa apps da web rodarem
+  fechados, então lá os avisos aparecem quando o app abre.
+- O token do Moodle continua só no aparelho: para checar em segundo plano, o service worker lê uma
+  cópia dele no IndexedDB do próprio celular. A primeira checagem só registra o que já existe, então
+  faltas e envios antigos nunca viram aviso.
+
 ## Regras de presença
 
 - A porcentagem é a do Moodle: pontos nas chamadas já registradas ÷ máximo dessas chamadas. Cada

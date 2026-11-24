@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import { ApiFailure, sync } from './api'
+import { processNews } from './inbox'
 import { buildDisciplines } from './model'
 import { useApp, useClock } from './store'
 
@@ -30,6 +31,7 @@ export function syncNow({ silent = false }: { silent?: boolean } = {}): Promise<
         attendanceCmids,
       })
       useApp.getState().applySync(result)
+      void processNews(result)
       if (result.attendanceIssue === 'lockout' && !silent) {
         toast('Presenças já atualizadas há pouco', { description: 'O Moodle libera uma nova leitura a cada 6 minutos.' })
       } else if (result.attendanceIssue === 'session_failed' && !silent) {

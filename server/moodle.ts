@@ -5,6 +5,7 @@ import { parse } from 'node-html-parser'
 import type {
   Activity,
   AttendanceIssue,
+  GroupSubmission,
   AttendanceSession,
   Course,
   CourseAttendance,
@@ -136,6 +137,8 @@ interface WsCourse {
   fullname: string
   idnumber?: string
   startdate?: number
+  /** Last time the student opened the course (Moodle updates it at most once a minute). */
+  lastaccess?: number | null
 }
 
 interface WsModule {
@@ -180,15 +183,17 @@ export async function syncMoodle(
   knownAttendance: Record<number, number[]> = {},
 ): Promise<SyncResult> {
   const now = Math.floor(Date.now() / 1000)
+  // Courses first: opening an attendance page updates the course "last access", which is how
+  // group submissions made by someone else are told apart from the student's own.
+  const enrolled = await callWs<WsCourse[]>(auth.token, 'core_enrol_get_users_courses', {
+    userid: auth.userId,
+    returnusercount: 0,
+  })
   const knownTargets = new Map(Object.entries(knownAttendance).map(([courseId, cmids]) => [Number(courseId), cmids]))
   const earlyAttendance = knownTargets.size ? readAttendance(auth, knownTargets) : null
   // Avoid an unhandled rejection while the web services below are still running.
   earlyAttendance?.catch(() => {})
 
-  const enrolled = await callWs<WsCourse[]>(auth.token, 'core_enrol_get_users_courses', {
-    userid: auth.userId,
-    returnusercount: 0,
-  })
   const courses = enrolled.map(toCourse)
   const semester = semesterHint ?? currentSemester(enrolled, now)
   const current = courses.filter((course) => course.semester === semester)
@@ -199,7 +204,16 @@ export async function syncMoodle(
     .map((course) => course.startdate!)
   const semesterStart = Math.min(disciplineStarts.length ? Math.min(...disciplineStarts) : now, now - 30 * DAY_SECONDS)
 
-  const [contents, calendar, actions] = await Promise.all([
+  const lastAccess = new Map(enrolled.map((course) => [course.id, course.lastaccess ?? 0]))
+  const statusCache = new Map<number, Promise<AssignStatus>>()
+  const submissionStatus = (assignId: number) => {
+    if (!statusCache.has(assignId)) {
+      statusCache.set(assignId, callWs<AssignStatus>(auth.token, 'mod_assign_get_submission_status', { assignid: assignId }))
+    }
+    return statusCache.get(assignId)!
+  }
+
+  const [contents, calendar, actions, assignments] = await Promise.all([
     Promise.all(
       current.map((course) =>
         callWs<Array<{ modules: WsModule[] }>>(auth.token, 'core_course_get_contents', {
@@ -218,6 +232,14 @@ export async function syncMoodle(
         })
       : Promise.resolve({ events: [] }),
     readActionEvents(auth.token, semesterStart),
+    current.length
+      ? callWs<{ courses: Array<{ id: number; assignments: WsAssignment[] }> }>(auth.token, 'mod_assign_get_assignments', {
+          courseids: current.map((course) => course.id),
+        }).catch((error: unknown) => {
+          if (error instanceof AppError) throw error
+          return { courses: [] }
+        })
+      : Promise.resolve({ courses: [] }),
   ])
 
   const modules = new Map<string, WsModule>()
@@ -235,8 +257,9 @@ export async function syncMoodle(
     }
   })
 
-  const [activities, attendanceRead] = await Promise.all([
-    pendingActivities(auth, buildActivities(calendar.events, actions, modules, modulesByCmid, currentIds, now), now),
+  const [activities, groupSubmissions, attendanceRead] = await Promise.all([
+    pendingActivities(auth, buildActivities(calendar.events, actions, modules, modulesByCmid, currentIds, now), now, submissionStatus),
+    readGroupSubmissions(assignments.courses, lastAccess, now, submissionStatus),
     earlyAttendance ?? readAttendance(auth, attendanceCmids),
   ])
   let { attendance, session, issue } = attendanceRead
@@ -267,9 +290,59 @@ export async function syncMoodle(
     courses: current,
     activities,
     attendance,
+    groupSubmissions,
     session,
     attendanceIssue: issue,
   }
+}
+
+interface WsAssignment {
+  id: number
+  cmid: number
+  name: string
+  duedate: number
+  teamsubmission: number
+}
+
+// Group assignments outside this window are settled history.
+const GROUP_WINDOW_PAST = 30 * DAY_SECONDS
+const GROUP_WINDOW_FUTURE = 120 * DAY_SECONDS
+// Moodle updates "last access" at most once a minute; submitting takes a few page loads.
+const OWN_SUBMISSION_TOLERANCE = 5 * 60
+
+async function readGroupSubmissions(
+  courses: Array<{ id: number; assignments: WsAssignment[] }>,
+  lastAccess: Map<number, number>,
+  now: number,
+  submissionStatus: (assignId: number) => Promise<AssignStatus>,
+): Promise<GroupSubmission[]> {
+  const candidates = courses.flatMap((course) =>
+    course.assignments
+      .filter((assignment) => assignment.teamsubmission)
+      .filter((assignment) => !assignment.duedate || (assignment.duedate > now - GROUP_WINDOW_PAST && assignment.duedate < now + GROUP_WINDOW_FUTURE))
+      .map((assignment) => ({ assignment, courseId: course.id })),
+  )
+  const results = await Promise.all(
+    candidates.map(async ({ assignment, courseId }): Promise<GroupSubmission | null> => {
+      try {
+        const team = (await submissionStatus(assignment.id)).lastattempt?.teamsubmission
+        const submitted = team?.status === 'submitted'
+        const savedAt = team?.timemodified ?? 0
+        return {
+          cmid: assignment.cmid,
+          courseId,
+          name: cleanText(assignment.name),
+          url: `${MOODLE_URL}/mod/assign/view.php?id=${assignment.cmid}`,
+          submitted,
+          submittedAt: submitted && savedAt ? toIso(savedAt) : null,
+          likelyMine: submitted && (lastAccess.get(courseId) ?? 0) >= savedAt - OWN_SUBMISSION_TOLERANCE,
+        }
+      } catch {
+        return null
+      }
+    }),
+  )
+  return results.filter((result): result is GroupSubmission => result !== null)
 }
 
 /** Pending activities (Moodle "Linha do tempo"), paginated by event id. */
@@ -390,7 +463,7 @@ function buildActivities(
 interface AssignStatus {
   lastattempt?: {
     submission?: { status: string }
-    teamsubmission?: { status: string }
+    teamsubmission?: { status: string; timemodified?: number }
     submissionsenabled?: boolean
     canedit?: boolean
     graded?: boolean
@@ -407,10 +480,15 @@ const CLASS_GROUP_NAME = /^[A-Z]{3}\d{4}-\S+\s*\(\d{5}\)$/
  * each one with its module: submitted (by the student or the group), already graded (in-class
  * evaluations), closed for submissions, or a group choice the student already made.
  */
-async function isSettled(auth: MoodleAuth, activity: ActivityCandidate, now: number): Promise<boolean> {
+async function isSettled(
+  auth: MoodleAuth,
+  activity: ActivityCandidate,
+  now: number,
+  submissionStatus: (assignId: number) => Promise<AssignStatus>,
+): Promise<boolean> {
   const past = Date.parse(activity.dueAt) / 1000 < now
   if (activity.module === 'assign' && activity.instance) {
-    const status = await callWs<AssignStatus>(auth.token, 'mod_assign_get_submission_status', { assignid: activity.instance })
+    const status = await submissionStatus(activity.instance)
     const attempt = status.lastattempt
     if (attempt?.submission?.status === 'submitted' || attempt?.teamsubmission?.status === 'submitted') return true
     if (attempt?.graded || attempt?.gradingstatus === 'graded' || status.feedback) return true
@@ -441,12 +519,17 @@ async function isSettled(auth: MoodleAuth, activity: ActivityCandidate, now: num
 }
 
 /** Keeps only what still needs the student (the Atividades tab hides delivered work). */
-async function pendingActivities(auth: MoodleAuth, candidates: ActivityCandidate[], now: number): Promise<Activity[]> {
+async function pendingActivities(
+  auth: MoodleAuth,
+  candidates: ActivityCandidate[],
+  now: number,
+  submissionStatus: (assignId: number) => Promise<AssignStatus>,
+): Promise<Activity[]> {
   const checked = await Promise.all(
     candidates.map(async (candidate) => {
       if (!candidate.pending || !candidate.module) return candidate
       // If a check fails, Moodle's own answer stands.
-      const settled = await isSettled(auth, candidate, now).catch(() => false)
+      const settled = await isSettled(auth, candidate, now, submissionStatus).catch(() => false)
       return settled ? { ...candidate, pending: false } : candidate
     }),
   )

@@ -5,6 +5,8 @@ import { create } from 'zustand'
 export interface AbsenceSheet {
   disciplineId: string
   recordId: string | null
+  /** Class day to start with (from a "falta lançada no Moodle" news). */
+  presetDate: string | null
   /** Changes on every opening, so the form always starts fresh. */
   openedAt: number
 }
@@ -16,7 +18,7 @@ interface UiState {
   openDiscipline: (id: string) => void
   closeDiscipline: () => void
   setProfileOpen: (open: boolean) => void
-  openAbsence: (disciplineId: string, recordId?: string) => void
+  openAbsence: (disciplineId: string, recordId?: string, presetDate?: string) => void
   closeAbsence: () => void
 }
 
@@ -27,7 +29,8 @@ export const useUi = create<UiState>()((set) => ({
   openDiscipline: (disciplineId) => set({ disciplineId }),
   closeDiscipline: () => set({ disciplineId: null }),
   setProfileOpen: (profileOpen) => set({ profileOpen }),
-  openAbsence: (disciplineId, recordId) => set({ absence: { disciplineId, recordId: recordId ?? null, openedAt: Date.now() } }),
+  openAbsence: (disciplineId, recordId, presetDate) =>
+    set({ absence: { disciplineId, recordId: recordId ?? null, presetDate: presetDate ?? null, openedAt: Date.now() } }),
   closeAbsence: () => set({ absence: null }),
 }))
 

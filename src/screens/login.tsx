@@ -8,6 +8,7 @@ import { EASE_OUT } from '@/components/tone'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ApiFailure, login } from '@/lib/api'
+import { processNews } from '@/lib/inbox'
 import { useApp } from '@/lib/store'
 
 const STEPS: Array<{ step: LoginStep; label: string }> = [
@@ -34,6 +35,8 @@ export function LoginScreen() {
       const result = await login(username.trim(), password, setStep)
       setPassword('')
       signIn(result)
+      // First check: records what already exists, so old absences never become notifications.
+      void processNews(result.sync)
       if (result.notices.includes('collecta')) {
         toast('A UFSC tem uma avaliação para você', {
           description: 'O app tocou em “Responder mais tarde”. Responda quando quiser em sistemas.ufsc.br.',

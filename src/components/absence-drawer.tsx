@@ -54,7 +54,7 @@ function AbsenceForm({ sheet, view, onDone }: { sheet: AbsenceSheet; view: Disci
   const taken = new Set(records.filter((record) => record.id !== sheet.recordId).map((record) => record.date))
 
   const [date, setDate] = useState<string | null>(() =>
-    editing ? editing.date : (days.find((day) => !taken.has(day)) ?? days[0] ?? isoDay(now)),
+    editing ? editing.date : (sheet.presetDate ?? days.find((day) => !taken.has(day)) ?? days[0] ?? isoDay(now)),
   )
   const [note, setNote] = useState(editing?.note ?? '')
   const [otherDay, setOtherDay] = useState(() => Boolean(date && !days.includes(date)))

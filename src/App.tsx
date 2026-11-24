@@ -2,9 +2,10 @@ import { AnimatePresence, MotionConfig, motion } from 'motion/react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Toaster, toast } from 'sonner'
 import { useRegisterSW } from 'virtual:pwa-register/react'
-import { useLocation } from 'wouter'
+import { useLocation, useSearch } from 'wouter'
 import { BottomNav, type TabKey, tabFromPath } from '@/components/bottom-nav'
 import { EASE_OUT } from '@/components/tone'
+import { loadInbox } from '@/lib/inbox'
 import { useNotesSync } from '@/lib/notes'
 import { useApp } from '@/lib/store'
 import { useAutoSync } from '@/lib/sync'
@@ -56,9 +57,35 @@ function LazySheets() {
   )
 }
 
+/** Notification links: /presenca/manual?registrar=INE5615&data=2026-11-20 opens the prefilled form. */
+function useNotificationLinks() {
+  const [location, navigate] = useLocation()
+  const search = useSearch()
+  useEffect(() => {
+    const params = new URLSearchParams(search)
+    const disciplineId = params.get('registrar')
+    if (!disciplineId) return
+    const date = params.get('data')
+    useUi.getState().openAbsence(disciplineId, undefined, date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined)
+    navigate(location, { replace: true })
+  }, [search, location, navigate])
+}
+
+/** News found by the service worker while the app was closed. */
+function useInboxLoader() {
+  useEffect(() => {
+    void loadInbox()
+    const onVisible = () => document.visibilityState === 'visible' && void loadInbox()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+}
+
 function Shell() {
   const [location] = useLocation()
   const tab = tabFromPath(location)
+  useNotificationLinks()
+  useInboxLoader()
   const positions = useRef<Record<TabKey, number>>({ hoje: 0, presenca: 0, atividades: 0 })
   const shownTab = useRef<TabKey>(tab)
 

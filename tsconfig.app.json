@@ -36,5 +36,8 @@
   "include": [
     "src",
     "shared"
+  ],
+  "exclude": [
+    "src/sw.ts"
   ]
 }

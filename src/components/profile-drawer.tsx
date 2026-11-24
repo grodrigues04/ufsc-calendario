@@ -1,10 +1,15 @@
+import { cn } from 'cn'
 import { Download, LogOut, RefreshCw, Share } from 'lucide-react'
+import { motion } from 'motion/react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from '@/components/ui/drawer'
 import { formatSyncedAgo } from '@/lib/format'
 import { useInstallPrompt } from '@/lib/install'
+import { clearNews } from '@/lib/inbox'
 import { clearNotes, flushNotes } from '@/lib/notes'
+import { disableBackgroundNews, enableBackgroundNews, useBackgroundNews } from '@/lib/notify'
 import { useApp, useClock } from '@/lib/store'
 import { syncNow } from '@/lib/sync'
 import { useBackToClose, useUi } from '@/lib/ui'
@@ -62,6 +67,8 @@ export function ProfileDrawer() {
             </Button>
           </div>
 
+          <NewsSettings />
+
           {canInstall && (
             <Button size="lg" className="mt-4 h-11 w-full rounded-full" onClick={() => void install()}>
               <Download />
@@ -83,6 +90,7 @@ export function ProfileDrawer() {
               setOpen(false)
               await flushNotes()
               clearNotes()
+              await clearNews()
               signOut()
               toast('Você saiu', { description: 'Os dados foram apagados deste aparelho. Suas faltas anotadas continuam salvas na sua conta.' })
             }}
@@ -98,3 +106,71 @@ export function ProfileDrawer() {
     </Drawer>
   )
 }
+
+function Switch({ checked, disabled, onChange, label }: { checked: boolean; disabled?: boolean; onChange: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onChange}
+      className={cn(
+        'relative flex h-7 w-12 shrink-0 items-center rounded-full p-0.5 transition-colors disabled:opacity-60',
+        checked ? 'justify-end bg-good' : 'justify-start bg-input',
+      )}
+    >
+      <motion.span layout transition={{ type: 'spring', bounce: 0.25, duration: 0.35 }} className="size-6 rounded-full bg-white shadow-sm" />
+    </button>
+  )
+}
+
+/** Notifications with the app closed: only where the browser lets web apps check by themselves. */
+function NewsSettings() {
+  const { support, enabled, setEnabled } = useBackgroundNews()
+  const [busy, setBusy] = useState(false)
+
+  async function toggle() {
+    setBusy(true)
+    try {
+      if (enabled) {
+        await disableBackgroundNews()
+        setEnabled(false)
+        toast('Avisos desativados')
+        return
+      }
+      const result = await enableBackgroundNews()
+      if (result === 'enabled') {
+        setEnabled(true)
+        toast.success('Avisos ativados', { description: 'O Android escolhe quando verificar, algumas vezes por dia.' })
+      } else if (result === 'denied') {
+        toast.error('Notificações bloqueadas', { description: 'Libere as notificações do Chamada nas configurações do celular.' })
+      } else {
+        toast('Este aparelho não deixa o app verificar fechado', { description: 'As novidades aparecem na tela Hoje.' })
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const description =
+    support === 'background'
+      ? enabled
+        ? 'Ativos: faltas lançadas no Moodle e trabalhos enviados pelo seu grupo chegam mesmo com o app fechado, algumas vezes por dia.'
+        : 'Receba aviso de faltas lançadas no Moodle e de trabalhos enviados pelo seu grupo, mesmo com o app fechado.'
+      : support === 'install-first'
+        ? 'Instale o app para receber avisos com ele fechado. Com ele aberto, as novidades aparecem na tela Hoje.'
+        : 'No iPhone o sistema não deixa o app consultar o Moodle com ele fechado. Faltas lançadas e trabalhos enviados pelo seu grupo aparecem na tela Hoje quando você abre o app.'
+
+  return (
+    <div className="mt-2 rounded-2xl bg-secondary/70 px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-semibold">Avisos</p>
+        {support === 'background' && <Switch checked={enabled} disabled={busy} onChange={() => void toggle()} label="Avisos com o app fechado" />}
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p>
+    </div>
+  )
+}
+

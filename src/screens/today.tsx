@@ -6,6 +6,7 @@ import { Link } from 'wouter'
 import type { Activity } from '@shared/types'
 import { AnimatedNumber } from '@/components/animated-number'
 import { AttendanceBar } from '@/components/attendance-bar'
+import { NewsCards } from '@/components/news-cards'
 import { Screen, SectionTitle } from '@/components/screen'
 import { EASE_OUT, TONE_TEXT } from '@/components/tone'
 import {
@@ -51,6 +52,7 @@ export function TodayScreen() {
 
   return (
     <Screen title="Hoje" subtitle={formatLongDate(now)}>
+      <NewsCards />
       {today.length > 0 ? (
         <div className="space-y-3">
           {today.map((item, index) => (
