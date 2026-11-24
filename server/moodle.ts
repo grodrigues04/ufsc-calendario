@@ -1,6 +1,6 @@
 // Moodle UFSC (presencial.moodle.ufsc.br): mobile token, web services and attendance pages.
 
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { parse } from 'node-html-parser'
 import type {
   Activity,
@@ -69,6 +69,22 @@ async function callWs<T>(token: string, wsfunction: string, args: Record<string,
     throw new MoodleWsError(errorcode, message)
   }
   return data as T
+}
+
+// ---------------------------------------------------------------- identity
+
+const identities = new Map<string, { userId: number; expires: number }>()
+const IDENTITY_TTL_MS = 10 * 60_000
+
+/** Asks Moodle who owns the token (cached briefly by a hash of the token, never the token itself). */
+export async function getMoodleUserId(token: string): Promise<number> {
+  const cacheKey = createHash('sha256').update(token).digest('hex')
+  const cached = identities.get(cacheKey)
+  if (cached && cached.expires > Date.now()) return cached.userId
+  const site = await callWs<{ userid: number }>(token, 'core_webservice_get_site_info')
+  identities.set(cacheKey, { userId: site.userid, expires: Date.now() + IDENTITY_TTL_MS })
+  if (identities.size > 1000) identities.delete(identities.keys().next().value!)
+  return site.userid
 }
 
 // ---------------------------------------------------------------- login
@@ -205,11 +221,13 @@ export async function syncMoodle(
   ])
 
   const modules = new Map<string, WsModule>()
+  const modulesByCmid = new Map<number, WsModule>()
   const attendanceCmids = new Map<number, number[]>()
   current.forEach((course, index) => {
     for (const section of contents[index]) {
       for (const module of section.modules) {
         modules.set(`${module.modname}:${module.instance}`, module)
+        modulesByCmid.set(module.id, module)
         if (module.modname === 'attendance' && module.uservisible !== false) {
           attendanceCmids.set(course.id, [...(attendanceCmids.get(course.id) ?? []), module.id])
         }
@@ -217,11 +235,11 @@ export async function syncMoodle(
     }
   })
 
-  const activities = buildActivities(calendar.events, actions, modules, currentIds)
-
-  let { attendance, session, issue } = earlyAttendance
-    ? await earlyAttendance
-    : await readAttendance(auth, attendanceCmids)
+  const [activities, attendanceRead] = await Promise.all([
+    pendingActivities(auth, buildActivities(calendar.events, actions, modules, modulesByCmid, currentIds, now), now),
+    earlyAttendance ?? readAttendance(auth, attendanceCmids),
+  ])
+  let { attendance, session, issue } = attendanceRead
   if (earlyAttendance) {
     // Keep only current courses and read attendance activities the hint did not know about.
     attendance = Object.fromEntries(Object.entries(attendance).filter(([courseId]) => attendanceCmids.has(Number(courseId))))
@@ -301,14 +319,28 @@ function currentSemester(courses: WsCourse[], now: number): string | null {
   return latest
 }
 
+/** An activity plus the ids needed to check it with the module's own web services. */
+interface ActivityCandidate extends Activity {
+  instance: number | null
+  cmid: number | null
+}
+
+function cmidFromUrl(url: string | undefined): number | null {
+  if (!url) return null
+  const id = Number(new URL(url).searchParams.get('id'))
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
 function buildActivities(
   events: WsEvent[],
   actionEvents: WsActionEvent[],
   modules: Map<string, WsModule>,
+  modulesByCmid: Map<number, WsModule>,
   currentIds: Set<number>,
-): Activity[] {
+  now: number,
+): ActivityCandidate[] {
   const actions = new Map(actionEvents.map((event) => [event.id, event]))
-  const activities = new Map<number, Activity>()
+  const activities = new Map<number, ActivityCandidate>()
 
   for (const event of events) {
     const module = event.modulename ?? ''
@@ -324,15 +356,19 @@ function buildActivities(
       eventType: event.eventtype,
       dueAt: toIso(event.timestart),
       url: info?.url ?? action?.url ?? `${MOODLE_URL}/course/view.php?id=${event.courseid}`,
-      pending: Boolean(action),
+      // Module events count while Moodle expects an action; plain course events (exams) while upcoming.
+      pending: module ? Boolean(action) : event.timestart >= now,
       overdue: action?.overdue ?? false,
       actionLabel: action?.action?.name ?? null,
+      instance: event.instance ?? null,
+      cmid: info?.id ?? cmidFromUrl(action?.url),
     })
   }
   // Pending events outside the calendar window still matter.
   for (const action of actionEvents) {
     const courseId = action.course?.id ?? 0
     if (activities.has(action.id) || !currentIds.has(courseId)) continue
+    const cmid = cmidFromUrl(action.url)
     activities.set(action.id, {
       id: action.id,
       courseId,
@@ -344,9 +380,90 @@ function buildActivities(
       pending: true,
       overdue: action.overdue,
       actionLabel: action.action?.name ?? null,
+      instance: (cmid && modulesByCmid.get(cmid)?.instance) || null,
+      cmid,
     })
   }
   return [...activities.values()].sort((a, b) => a.dueAt.localeCompare(b.dueAt))
+}
+
+interface AssignStatus {
+  lastattempt?: {
+    submission?: { status: string }
+    teamsubmission?: { status: string }
+    submissionsenabled?: boolean
+    canedit?: boolean
+    graded?: boolean
+    gradingstatus?: string
+  }
+  feedback?: unknown
+}
+
+// Class group created from CAGR in combined courses: "INE5645-05238B (20262)".
+const CLASS_GROUP_NAME = /^[A-Z]{3}\d{4}-\S+\s*\(\d{5}\)$/
+
+/**
+ * Moodle's timeline keeps items "pending" that need nothing else from the student. This checks
+ * each one with its module: submitted (by the student or the group), already graded (in-class
+ * evaluations), closed for submissions, or a group choice the student already made.
+ */
+async function isSettled(auth: MoodleAuth, activity: ActivityCandidate, now: number): Promise<boolean> {
+  const past = Date.parse(activity.dueAt) / 1000 < now
+  if (activity.module === 'assign' && activity.instance) {
+    const status = await callWs<AssignStatus>(auth.token, 'mod_assign_get_submission_status', { assignid: activity.instance })
+    const attempt = status.lastattempt
+    if (attempt?.submission?.status === 'submitted' || attempt?.teamsubmission?.status === 'submitted') return true
+    if (attempt?.graded || attempt?.gradingstatus === 'graded' || status.feedback) return true
+    // Before the due date "cannot edit" may only mean "not open yet".
+    return past && (attempt?.submissionsenabled === false || attempt?.canedit === false)
+  }
+  if (activity.module === 'quiz' && activity.instance) {
+    const { attempts } = await callWs<{ attempts: unknown[] }>(auth.token, 'mod_quiz_get_user_attempts', {
+      quizid: activity.instance,
+      status: 'finished',
+      includepreviews: 0,
+    })
+    return attempts.length > 0
+  }
+  if (activity.module === 'groupselect') {
+    const groupingId = activity.cmid
+      ? ((await callWs<{ cm?: { groupingid?: number } }>(auth.token, 'core_course_get_course_module', { cmid: activity.cmid })).cm
+          ?.groupingid ?? 0)
+      : 0
+    const { groups } = await callWs<{ groups: Array<{ name: string }> }>(auth.token, 'core_group_get_course_user_groups', {
+      courseid: activity.courseId,
+      userid: auth.userId,
+      groupingid: groupingId,
+    })
+    return groups.some((group) => groupingId > 0 || !CLASS_GROUP_NAME.test(cleanText(group.name)))
+  }
+  return false
+}
+
+/** Keeps only what still needs the student (the Atividades tab hides delivered work). */
+async function pendingActivities(auth: MoodleAuth, candidates: ActivityCandidate[], now: number): Promise<Activity[]> {
+  const checked = await Promise.all(
+    candidates.map(async (candidate) => {
+      if (!candidate.pending || !candidate.module) return candidate
+      // If a check fails, Moodle's own answer stands.
+      const settled = await isSettled(auth, candidate, now).catch(() => false)
+      return settled ? { ...candidate, pending: false } : candidate
+    }),
+  )
+  return checked
+    .filter((candidate) => candidate.pending)
+    .map(({ id, courseId, name, module, eventType, dueAt, url, pending, overdue, actionLabel }) => ({
+      id,
+      courseId,
+      name,
+      module,
+      eventType,
+      dueAt,
+      url,
+      pending,
+      overdue,
+      actionLabel,
+    }))
 }
 
 function cleanEventName(name: string): string {
