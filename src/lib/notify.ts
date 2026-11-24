@@ -1,6 +1,6 @@
 // System notifications while the app is closed. Web apps can only check by themselves where the
-// browser offers Periodic Background Sync (Android, installed app). On iPhone, news show up
-// inside the app when it opens.
+// browser offers Periodic Background Sync (Android, installed app). On iPhone, news show up in
+// the "Avisos" tab when the app opens.
 
 import { useEffect, useState } from 'react'
 import { isStandalone } from './install'

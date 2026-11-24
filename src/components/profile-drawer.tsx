@@ -147,7 +147,7 @@ function NewsSettings() {
       } else if (result === 'denied') {
         toast.error('Notificações bloqueadas', { description: 'Libere as notificações do Chamada nas configurações do celular.' })
       } else {
-        toast('Este aparelho não deixa o app verificar fechado', { description: 'As novidades aparecem na tela Hoje.' })
+        toast('Este aparelho não deixa o app verificar fechado', { description: 'As novidades aparecem na aba Avisos quando você abre o app.' })
       }
     } finally {
       setBusy(false)
@@ -160,8 +160,8 @@ function NewsSettings() {
         ? 'Ativos: faltas lançadas no Moodle e trabalhos enviados pelo seu grupo chegam mesmo com o app fechado, algumas vezes por dia.'
         : 'Receba aviso de faltas lançadas no Moodle e de trabalhos enviados pelo seu grupo, mesmo com o app fechado.'
       : support === 'install-first'
-        ? 'Instale o app para receber avisos com ele fechado. Com ele aberto, as novidades aparecem na tela Hoje.'
-        : 'No iPhone o sistema não deixa o app consultar o Moodle com ele fechado. Faltas lançadas e trabalhos enviados pelo seu grupo aparecem na tela Hoje quando você abre o app.'
+        ? 'Instale o app para receber avisos com ele fechado. Com ele aberto, as novidades aparecem na aba Avisos.'
+        : 'No iPhone, o sistema não deixa o app consultar o Moodle com ele fechado. Quando você abre o app, faltas lançadas e trabalhos enviados pelo seu grupo aparecem na aba Avisos, que surge na barra com o número de novidades.'
 
   return (
     <div className="mt-2 rounded-2xl bg-secondary/70 px-4 py-3">

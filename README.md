@@ -37,10 +37,12 @@ idUFSC e o app só monta a interface: não há banco de dados, os dados ficam no
   grupo. O app compara o horário do envio com o último acesso do estudante àquela disciplina
   (`lastaccess`, que só muda quando se abre uma página do Moodle): se o envio foi depois desse
   acesso, não foi ele, e o aviso aparece. Envios do próprio estudante não geram aviso.
-- **Onde aparecem**: na aba **Avisos** da barra de navegação, que só aparece quando há novidades e mostra quantas são; ao sair dela, os avisos contam como lidos e a aba é "esmagada" para fora da barra. Também há um aviso rápido na hora em que chegam. Com o app fechado, só no
-  Android com o app instalado: o service worker (`src/sw.ts`) usa Periodic Background Sync, e o
-  Android escolhe quando acordar o app (algumas vezes por dia). O iPhone não deixa apps da web rodarem
-  fechados, então lá os avisos aparecem quando o app abre.
+- **Onde aparecem**: na aba **Avisos** da barra de navegação, que só aparece quando há novidades e
+  mostra quantas são; ao sair dela, os avisos contam como lidos e a aba é "esmagada" para fora da
+  barra. Também há um aviso rápido na hora em que chegam. Com o app fechado, só no Android com o app
+  instalado: o service worker (`src/sw.ts`) usa Periodic Background Sync, e o Android escolhe quando
+  acordar o app (algumas vezes por dia). O iPhone não deixa apps da web rodarem fechados, então lá a
+  checagem acontece quando o app abre, e os avisos vão para a mesma aba.
 - O token do Moodle continua só no aparelho: para checar em segundo plano, o service worker lê uma
   cópia dele no IndexedDB do próprio celular. A primeira checagem só registra o que já existe, então
   faltas e envios antigos nunca viram aviso.
