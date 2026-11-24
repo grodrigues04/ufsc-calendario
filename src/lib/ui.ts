@@ -1,20 +1,34 @@
 import { useEffect, useRef } from 'react'
 import { create } from 'zustand'
 
+/** Sheet to register a manual absence (recordId null) or edit one. */
+export interface AbsenceSheet {
+  disciplineId: string
+  recordId: string | null
+  /** Changes on every opening, so the form always starts fresh. */
+  openedAt: number
+}
+
 interface UiState {
   disciplineId: string | null
   profileOpen: boolean
+  absence: AbsenceSheet | null
   openDiscipline: (id: string) => void
   closeDiscipline: () => void
   setProfileOpen: (open: boolean) => void
+  openAbsence: (disciplineId: string, recordId?: string) => void
+  closeAbsence: () => void
 }
 
 export const useUi = create<UiState>()((set) => ({
   disciplineId: null,
   profileOpen: false,
+  absence: null,
   openDiscipline: (disciplineId) => set({ disciplineId }),
   closeDiscipline: () => set({ disciplineId: null }),
   setProfileOpen: (profileOpen) => set({ profileOpen }),
+  openAbsence: (disciplineId, recordId) => set({ absence: { disciplineId, recordId: recordId ?? null, openedAt: Date.now() } }),
+  closeAbsence: () => set({ absence: null }),
 }))
 
 /** Android/browser "back" closes an open sheet instead of leaving the screen. */

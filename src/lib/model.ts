@@ -425,28 +425,83 @@ export function classesPerMeeting(view: DisciplineView): number {
   return [...counts].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0]
 }
 
+/** Classes of a class day of the discipline on that date's weekday (falls back to the usual day). */
+export function classesOnDate(view: DisciplineView, date: string | null): number {
+  if (date) {
+    const weekday = new Date(`${date}T12:00:00`).getDay()
+    const slots = view.schedule.filter((slot) => slot.weekday === weekday)
+    if (slots.length) return slots.reduce((total, slot) => total + slot.classes, 0)
+  }
+  return classesPerMeeting(view)
+}
+
+/** The discipline's most recent class days up to today (newest first), as YYYY-MM-DD. */
+export function recentClassDays(view: DisciplineView, now: Date, count: number): string[] {
+  const weekdays = new Set(view.schedule.map((slot) => slot.weekday))
+  const first = view.meetings[0]?.start ? startOfDay(view.meetings[0].start) : addDays(startOfDay(now), -140)
+  const days: string[] = []
+  if (weekdays.size === 0) {
+    // Without the CAGR grid, the Moodle sessions say which days had class.
+    for (const meeting of [...view.meetings].reverse()) {
+      if (meeting.start > now) continue
+      const day = isoDay(meeting.start)
+      if (!days.includes(day)) days.push(day)
+      if (days.length === count) break
+    }
+    return days
+  }
+  for (let day = startOfDay(now); day >= first && days.length < count; day = addDays(day, -1)) {
+    if (weekdays.has(day.getDay())) days.push(isoDay(day))
+  }
+  return days
+}
+
+export function isoDay(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 export interface ManualStats {
+  /** Classes (h/a) of the semester and the 25% limit, in classes. */
   total: number
   allowed: number
-  absences: number
-  remaining: number
+  /** Classes of a usual class day: one absence = one class day. */
+  perDay: number
+  /** Absences noted (class days) and the classes they add up to. */
+  days: number
+  classes: number
+  /** How many class days the student may miss in the semester. */
+  maxDays: number
+  remainingDays: number
+  /** Class days over the limit (0 when within it). */
+  overDays: number
   /** Attendance at the end of the semester counting only the noted absences. */
   percent: number | null
   tone: Tone
   failed: boolean
 }
 
-export function manualStats(view: DisciplineView, absences: number): ManualStats {
+/**
+ * Redes (2 + 2 classes a week): 72 classes, 25% = 18 classes = 9 class days.
+ * Each noted absence counts the classes of its weekday.
+ */
+export function manualStats(view: DisciplineView, records: Array<{ date: string | null }>): ManualStats {
   const total = semesterClasses(view)
   const allowed = Math.floor(total * ABSENCE_LIMIT + 1e-9)
-  const percent = total > 0 ? Math.max(0, ((total - absences) / total) * 100) : null
+  const perDay = classesPerMeeting(view)
+  const classes = records.reduce((sum, record) => sum + classesOnDate(view, record.date), 0)
+  const percent = total > 0 ? Math.max(0, ((total - classes) / total) * 100) : null
+  const failed = total > 0 && classes > allowed
   return {
     total,
     allowed,
-    absences,
-    remaining: allowed - absences,
+    perDay,
+    days: records.length,
+    classes,
+    maxDays: Math.floor(allowed / perDay),
+    remainingDays: failed ? 0 : Math.floor((allowed - classes) / perDay),
+    overDays: failed ? Math.ceil((classes - allowed) / perDay) : 0,
     percent,
     tone: toneFor(percent),
-    failed: total > 0 && absences > allowed,
+    failed,
   }
 }

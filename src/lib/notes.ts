@@ -5,10 +5,23 @@ import { useEffect } from 'react'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import type { ApiError } from '@shared/types'
-import { type ManualNotes, type NotesResponse, sameNotes } from '@shared/notes'
+import {
+  changedSince,
+  type ManualNotes,
+  MAX_NOTE_LENGTH,
+  type NotesResponse,
+  sameNotes,
+  sanitizeNotes,
+  setRecord,
+} from '@shared/notes'
 import { useApp } from './store'
 
 type SyncState = 'idle' | 'saving' | 'offline' | 'error'
+
+export interface AbsenceInput {
+  date: string | null
+  note: string
+}
 
 interface NotesState {
   /** Moodle user id that owns the local notes. */
@@ -17,36 +30,62 @@ interface NotesState {
   /** Local changes the server has not confirmed yet. */
   dirty: boolean
   status: SyncState
-  setAbsences: (semester: string, disciplineId: string, absences: number) => void
+  /** Returns the new record id (used by "Desfazer"). */
+  addAbsence: (semester: string, disciplineId: string, input: AbsenceInput) => string
+  updateAbsence: (semester: string, disciplineId: string, recordId: string, input: AbsenceInput) => void
+  deleteAbsence: (semester: string, disciplineId: string, recordId: string) => void
+}
+
+function newId(): string {
+  return crypto.randomUUID()
 }
 
 export const useNotes = create<NotesState>()(
   persist(
-    (set) => ({
-      ownerId: null,
-      notes: {},
-      dirty: false,
-      status: 'idle',
-      setAbsences: (semester, disciplineId, absences) => {
-        set((state) => ({
-          dirty: true,
-          notes: {
-            ...state.notes,
-            [semester]: { ...state.notes[semester], [disciplineId]: { absences, updatedAt: new Date().toISOString() } },
-          },
-        }))
+    (set, get) => {
+      const save = (notes: ManualNotes) => {
+        set({ notes, dirty: true })
         scheduleSave()
-      },
-    }),
+      }
+      const record = (input: AbsenceInput) => ({
+        date: input.date,
+        note: input.note.trim().slice(0, MAX_NOTE_LENGTH),
+        updatedAt: new Date().toISOString(),
+      })
+      return {
+        ownerId: null,
+        notes: {},
+        dirty: false,
+        status: 'idle',
+        addAbsence: (semester, disciplineId, input) => {
+          const id = newId()
+          save(setRecord(get().notes, semester, disciplineId, id, record(input)))
+          return id
+        },
+        updateAbsence: (semester, disciplineId, recordId, input) =>
+          save(setRecord(get().notes, semester, disciplineId, recordId, record(input))),
+        deleteAbsence: (semester, disciplineId, recordId) => {
+          const current = get().notes[semester]?.[disciplineId]?.[recordId]
+          if (!current) return
+          save(setRecord(get().notes, semester, disciplineId, recordId, { ...current, deleted: true, updatedAt: new Date().toISOString() }))
+        },
+      }
+    },
     {
       name: 'chamada:notes:v1',
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       partialize: ({ ownerId, notes, dirty }) => ({ ownerId, notes, dirty }),
+      // Version 1 stored a count per discipline: it becomes undated absences.
+      migrate: (persisted) => {
+        const state = (persisted ?? {}) as { ownerId?: number | null; notes?: unknown; dirty?: boolean }
+        return { ownerId: state.ownerId ?? null, notes: sanitizeNotes(state.notes) ?? {}, dirty: Boolean(state.dirty) } as NotesState
+      },
     },
   ),
 )
 
-const SAVE_DELAY_MS = 900
+const SAVE_DELAY_MS = 700
 let saveTimer: number | undefined
 let inFlight: Promise<void> | null = null
 
@@ -55,7 +94,7 @@ function scheduleSave(): void {
   saveTimer = window.setTimeout(() => void syncNotes(), SAVE_DELAY_MS)
 }
 
-/** Sends local changes (if any) and brings the saved notes back, merging by update time. */
+/** Sends local changes (if any) and brings the saved notes back. */
 export function syncNotes(): Promise<void> {
   if (inFlight) {
     // A change made during a request is sent right after it.
@@ -83,8 +122,12 @@ export function syncNotes(): Promise<void> {
       const { notes: saved } = (await response.json()) as NotesResponse
       // The server's copy wins, except for what changed on the device while the request ran.
       const changed = changedSince(useNotes.getState().notes, sent.notes)
-      const merged = { ...saved }
-      for (const [semester, disciplines] of Object.entries(changed)) merged[semester] = { ...merged[semester], ...disciplines }
+      let merged = saved
+      for (const [semester, disciplines] of Object.entries(changed)) {
+        for (const [discipline, records] of Object.entries(disciplines)) {
+          for (const [id, record] of Object.entries(records)) merged = setRecord(merged, semester, discipline, id, record)
+        }
+      }
       useNotes.setState({ notes: merged, dirty: !sameNotes(merged, saved), status: 'idle' })
     } catch {
       useNotes.setState({ status: navigator.onLine ? 'error' : 'offline' })
@@ -93,20 +136,6 @@ export function syncNotes(): Promise<void> {
     }
   })()
   return inFlight
-}
-
-/** Entries of `current` that differ from the `sent` snapshot. */
-function changedSince(current: ManualNotes, sent: ManualNotes): ManualNotes {
-  const changed: ManualNotes = {}
-  for (const [semester, disciplines] of Object.entries(current)) {
-    for (const [discipline, entry] of Object.entries(disciplines)) {
-      const before = sent[semester]?.[discipline]
-      if (!before || before.absences !== entry.absences || before.updatedAt !== entry.updatedAt) {
-        changed[semester] = { ...changed[semester], [discipline]: entry }
-      }
-    }
-  }
-  return changed
 }
 
 /** Sends pending changes before signing out (best effort, a few seconds at most). */

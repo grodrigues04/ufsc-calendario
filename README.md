@@ -17,9 +17,11 @@ idUFSC e o app só monta a interface: não há banco de dados, os dados ficam no
     disciplina). A simulação usa as próximas aulas reais de cada disciplina a partir de agora (numa
     terça, uma disciplina de segunda e quarta falta na quarta e na segunda seguinte) e compara a
     barra atual com a barra depois das faltas.
-  - *Manual*: o estudante anota quantas faltas tem em cada disciplina. Só essas faltas contam:
-    presença = (aulas do semestre − faltas) ÷ aulas do semestre, com o limite de 25%. As aulas do
-    semestre vêm da grade do CAGR (aulas por semana × 18 semanas).
+  - *Manual*: o estudante registra cada dia de aula que faltou, com uma anotação opcional
+    ("consulta médica"). Só essas faltas contam. Uma falta = um dia de aula, e vale as aulas daquele
+    dia da semana na grade do CAGR. Aulas do semestre = aulas por semana × 18 semanas; o limite é
+    25% delas, mostrado em dias: Redes (2 + 2 aulas por semana) tem 72 aulas, pode faltar 18 aulas,
+    ou seja, 9 dias; a 10ª falta deixa a presença em 72%.
 - **Atividades**: o que ainda precisa ser feito, com prazo e disciplina, agrupado por data
   (atrasadas, hoje, amanhã, próximos 7 dias, mais adiante). Não aparecem atividades entregues
   (pelo estudante ou pelo grupo), já avaliadas (provas em sala), encerradas para envio ou escolhas
@@ -56,8 +58,8 @@ app (PWA) ──POST /api/login──▶ função Vercel (gru1) ──▶ idUFSC
   Postgres no Neon (São Paulo). A identidade é a conta do Moodle: a cada leitura ou gravação o
   servidor pergunta ao Moodle de quem é o token. A tabela guarda só uma HMAC do id do Moodle (nunca
   o id, nome ou matrícula) e as anotações cifradas com AES-256-GCM; as duas chaves derivam de
-  `NOTES_SECRET`, que só existe no ambiente da Vercel. Entre aparelhos, por disciplina, vale a
-  anotação mais recente.
+  `NOTES_SECRET`, que só existe no ambiente da Vercel. Entre aparelhos, cada falta é sincronizada
+  separadamente (vale a versão mais recente, e uma falta apagada continua apagada).
 - **Privacidade**: a senha só passa pela função no login e não é salva nem registrada em log. O
   app guarda no aparelho (localStorage) o token do Moodle, a sessão web e os dados exibidos.
   Sair apaga tudo do aparelho (as faltas anotadas continuam salvas na conta).

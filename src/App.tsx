@@ -38,7 +38,7 @@ const Sheets = lazy(() => import('@/components/sheets'))
 
 /** Mounts the sheets when the browser is idle, or right away if one is requested before that. */
 function LazySheets() {
-  const requested = useUi((state) => state.disciplineId !== null || state.profileOpen)
+  const requested = useUi((state) => state.disciplineId !== null || state.profileOpen || state.absence !== null)
   const [idle, setIdle] = useState(false)
   useEffect(() => {
     if ('requestIdleCallback' in window) {
