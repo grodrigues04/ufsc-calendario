@@ -3,8 +3,8 @@ import { motion } from 'motion/react'
 import { AnimatedNumber } from '@/components/animated-number'
 import { AttendanceBar } from '@/components/attendance-bar'
 import { EASE_OUT, TONE_BG, TONE_TEXT } from '@/components/tone'
-import { formatRelativeDay, formatTime, plural } from '@/lib/format'
-import { type DisciplineView, nextMeetings, type Tone } from '@/lib/model'
+import { formatDayCount, formatRelativeDay, formatTime, plural } from '@/lib/format'
+import { absenceDays, type DisciplineView, nextMeetings, type Tone } from '@/lib/model'
 import { useClock } from '@/lib/store'
 import { useUi } from '@/lib/ui'
 
@@ -20,6 +20,9 @@ export function OverviewView({ views }: { views: DisciplineView[] }) {
   for (const view of tracked) counts[view.stats.failed ? 'bad' : view.stats.tone]++
   const absences = tracked.reduce((total, view) => total + view.stats.absences, 0)
   const allowed = tracked.reduce((total, view) => total + view.stats.allowedAbsences, 0)
+  const days = tracked.map((view) => absenceDays(view))
+  const absentDays = days.reduce((total, day) => total + day.absent, 0)
+  const allowedDays = days.reduce((total, day) => total + day.allowed, 0)
 
   if (views.length === 0) {
     return <p className="rounded-3xl border bg-card px-5 py-6 text-center text-sm text-muted-foreground">Nenhuma disciplina encontrada neste semestre.</p>
@@ -38,7 +41,11 @@ export function OverviewView({ views }: { views: DisciplineView[] }) {
             <p className="text-xs text-muted-foreground">Faltas no semestre</p>
             <p className="tabular text-2xl font-semibold">
               {absences}
-              <span className="text-base font-medium text-muted-foreground"> de {allowed} permitidas</span>
+              <span className="text-base font-medium text-muted-foreground"> de {allowed} aulas permitidas</span>
+            </p>
+            <p className="tabular text-xs text-muted-foreground">
+              = <span className="font-semibold text-foreground">{formatDayCount(absentDays)}</span> de{' '}
+              {plural(allowedDays, 'dia de aula', 'dias de aula')}
             </p>
           </div>
           <p className="pb-1 text-right text-xs text-muted-foreground">{plural(tracked.length, 'disciplina', 'disciplinas')}</p>
@@ -78,6 +85,7 @@ function OverviewRow({ view, index }: { view: DisciplineView; index: number }) {
   const openDiscipline = useUi((state) => state.openDiscipline)
   const { stats } = view
   const next = nextMeetings(view, now, 1)[0]
+  const days = absenceDays(view)
   const delay = 0.04 + Math.min(index, 8) * 0.04
 
   return (
@@ -95,18 +103,20 @@ function OverviewRow({ view, index }: { view: DisciplineView; index: number }) {
         <AnimatedNumber value={stats.percent} className={cn('tabular shrink-0 text-lg font-semibold', TONE_TEXT[stats.tone])} />
       </div>
       <AttendanceBar percent={stats.percent} tone={stats.tone} className="mt-2.5" delay={delay} />
-      <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+      <div className="mt-2 text-xs text-muted-foreground">
         {stats.hasData ? (
-          <span className={cn(stats.failed && 'font-medium text-bad')}>
-            Faltas <span className="tabular font-semibold text-foreground">{stats.absences}</span> de {stats.allowedAbsences}
-          </span>
+          <p className={cn('tabular', stats.failed && 'font-medium text-bad')}>
+            Faltas <span className="font-semibold text-foreground">{stats.absences}</span> de {stats.allowedAbsences} aulas ·{' '}
+            <span className="font-semibold text-foreground">{formatDayCount(days.absent)}</span> de{' '}
+            {plural(days.allowed, 'dia', 'dias')}
+          </p>
         ) : (
-          <span>Sem chamadas</span>
+          <p>Sem chamadas</p>
         )}
         {next && (
-          <span className="truncate">
+          <p className="mt-0.5 truncate">
             Próxima: <span className="text-foreground">{formatRelativeDay(next.start, now)}</span>, {formatTime(next.start)}
-          </span>
+          </p>
         )}
       </div>
     </motion.button>

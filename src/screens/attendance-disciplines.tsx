@@ -3,7 +3,8 @@ import { motion } from 'motion/react'
 import { AnimatedNumber } from '@/components/animated-number'
 import { Ring } from '@/components/ring'
 import { EASE_OUT, TONE_TEXT } from '@/components/tone'
-import type { DisciplineView } from '@/lib/model'
+import { formatDayCount, plural } from '@/lib/format'
+import { absenceDays, type DisciplineView } from '@/lib/model'
 import { useUi } from '@/lib/ui'
 
 export function DisciplinesView({ views }: { views: DisciplineView[] }) {
@@ -12,6 +13,7 @@ export function DisciplinesView({ views }: { views: DisciplineView[] }) {
     <div className="grid grid-cols-2 gap-3">
       {views.map((view, index) => {
         const { stats } = view
+        const days = absenceDays(view)
         const delay = Math.min(index, 8) * 0.04
         return (
           <motion.button
@@ -28,9 +30,14 @@ export function DisciplinesView({ views }: { views: DisciplineView[] }) {
               <AnimatedNumber value={stats.percent} className={cn('tabular text-xl font-semibold', TONE_TEXT[stats.tone])} />
             </Ring>
             <span className="mt-3 line-clamp-2 min-h-[2.5em] text-[13px] leading-tight font-semibold">{view.shortName}</span>
-            <span className={cn('mt-1 text-xs text-muted-foreground', stats.failed && 'font-medium text-bad')}>
-              {stats.hasData ? `${stats.absences} de ${stats.allowedAbsences} faltas` : 'sem chamadas'}
+            <span className={cn('tabular mt-1 text-xs text-muted-foreground', stats.failed && 'font-medium text-bad')}>
+              {stats.hasData ? `${stats.absences} de ${stats.allowedAbsences} aulas de falta` : 'sem chamadas'}
             </span>
+            {stats.hasData && (
+              <span className={cn('tabular text-xs text-muted-foreground', stats.failed && 'font-medium text-bad')}>
+                {formatDayCount(days.absent)} de {plural(days.allowed, 'dia', 'dias')}
+              </span>
+            )}
           </motion.button>
         )
       })}

@@ -100,3 +100,10 @@ export function formatSyncedAgo(iso: string | undefined, now: Date): string {
   if (hours < 24) return `há ${hours} h`
   return `em ${formatDayMonth(new Date(iso))}`
 }
+
+const dayCountFormat = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
+
+/** "5", "4,5" (half a class day when one class of the day was missed). */
+export function formatDayCount(days: number): string {
+  return dayCountFormat.format(Math.round(days * 10) / 10)
+}

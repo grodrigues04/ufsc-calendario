@@ -10,6 +10,7 @@ import { Screen, SectionTitle } from '@/components/screen'
 import { EASE_OUT, TONE_TEXT } from '@/components/tone'
 import {
   dayDiff,
+  formatDayCount,
   formatDistance,
   formatDue,
   formatLongDate,
@@ -18,7 +19,7 @@ import {
   formatTimeRange,
   plural,
 } from '@/lib/format'
-import { activityItems, type ClassItem, classesOn, nextClassDay, toneFor } from '@/lib/model'
+import { absenceDays, activityItems, type ClassItem, classesOn, nextClassDay, toneFor } from '@/lib/model'
 import { useApp, useClock } from '@/lib/store'
 import { useDisciplines } from '@/lib/sync'
 import { useUi } from '@/lib/ui'
@@ -128,6 +129,7 @@ function ClassCard({ item, index }: { item: ClassItem; index: number }) {
   const openDiscipline = useUi((state) => state.openDiscipline)
   const { view, meeting, whatIf } = item
   const { stats } = view
+  const days = absenceDays(view)
   const live = now >= meeting.start && now <= meeting.end
   const ended = now > meeting.end
 
@@ -188,10 +190,15 @@ function ClassCard({ item, index }: { item: ClassItem; index: number }) {
             <AttendanceBar percent={stats.percent} tone={stats.tone} className="mt-3" delay={0.05 + Math.min(index, 6) * 0.05} />
             <p className="mt-1.5 text-xs text-muted-foreground">
               {stats.failed ? (
-                <span className="font-medium text-bad">Faltas acima do limite ({stats.absences} de {stats.allowedAbsences})</span>
+                <span className="font-medium text-bad">
+                  Faltas acima do limite: {stats.absences} de {stats.allowedAbsences} aulas ({formatDayCount(days.absent)} de{' '}
+                  {plural(days.allowed, 'dia', 'dias')})
+                </span>
               ) : (
                 <>
-                  Faltas {stats.absences} de {stats.allowedAbsences} · pode faltar mais {plural(Math.max(0, stats.remainingAbsences), 'aula', 'aulas')}
+                  Faltas {stats.absences} de {stats.allowedAbsences} aulas ({formatDayCount(days.absent)} de{' '}
+                  {plural(days.allowed, 'dia', 'dias')}) ·{' '}
+                  {days.remaining > 0 ? `pode faltar mais ${plural(days.remaining, 'dia', 'dias')}` : 'no limite de faltas'}
                 </>
               )}
             </p>

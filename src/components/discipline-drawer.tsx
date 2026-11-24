@@ -4,8 +4,8 @@ import { motion } from 'motion/react'
 import { useMemo, useRef } from 'react'
 import type { SessionStatus } from '@shared/types'
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from '@/components/ui/drawer'
-import { formatDayMonth, formatPercent, formatRelativeDay, formatTimeRange, plural, weekdayShort } from '@/lib/format'
-import { type DisciplineView, displayRoom, nextMeetings, TONE_LABEL } from '@/lib/model'
+import { formatDayCount, formatDayMonth, formatPercent, formatRelativeDay, formatTimeRange, plural, weekdayShort } from '@/lib/format'
+import { absenceDays, type DisciplineView, displayRoom, nextMeetings, TONE_LABEL } from '@/lib/model'
 import { useClock } from '@/lib/store'
 import { useDisciplines } from '@/lib/sync'
 import { useBackToClose, useUi } from '@/lib/ui'
@@ -44,7 +44,7 @@ export function DisciplineDrawer() {
 function DisciplineDetail({ view }: { view: DisciplineView }) {
   const now = useClock((state) => state.now)
   const { stats } = view
-  const classesPerMeeting = stats.upcoming[0]?.classes ?? view.schedule[0]?.classes ?? 2
+  const days = absenceDays(view)
   const upcoming = useMemo(() => nextMeetings(view, now, 4), [view, now])
   const history = useMemo(
     () => view.meetings.filter((meeting) => meeting.points !== null || meeting.end <= now).reverse(),
@@ -76,16 +76,21 @@ function DisciplineDetail({ view }: { view: DisciplineView }) {
           </div>
 
           <dl className="mt-5 grid grid-cols-2 gap-2">
-            <Stat label="Faltas" value={`${stats.absences} de ${stats.allowedAbsences}`} hint="aulas permitidas" tone={stats.failed ? 'text-bad' : undefined} />
+            <Stat
+              label="Faltas"
+              value={`${stats.absences} de ${stats.allowedAbsences} aulas`}
+              hint={`= ${formatDayCount(days.absent)} de ${plural(days.allowed, 'dia de aula', 'dias de aula')}`}
+              tone={stats.failed ? 'text-bad' : undefined}
+            />
             <Stat
               label="Ainda pode faltar"
-              value={stats.remainingAbsences > 0 ? plural(stats.remainingAbsences, 'aula', 'aulas') : 'Nenhuma'}
+              value={days.remaining > 0 ? plural(days.remaining, 'dia', 'dias') : 'Nenhum dia'}
               hint={
                 stats.remainingAbsences > 0
-                  ? plural(Math.floor(stats.remainingAbsences / classesPerMeeting), 'dia de aula', 'dias de aula')
+                  ? `${plural(stats.remainingAbsences, 'aula', 'aulas')} (1 dia = ${plural(days.perDay, 'aula', 'aulas')})`
                   : 'limite de 25% atingido'
               }
-              tone={stats.remainingAbsences <= 0 ? 'text-bad' : undefined}
+              tone={days.remaining <= 0 ? 'text-bad' : undefined}
             />
             <Stat label="Máximo possível" value={formatPercent(stats.maxPossiblePercent)} hint="indo em todas as próximas" />
             <Stat

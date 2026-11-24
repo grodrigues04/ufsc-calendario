@@ -505,3 +505,28 @@ export function manualStats(view: DisciplineView, records: Array<{ date: string 
     failed,
   }
 }
+
+// ---------------------------------------------------------------- absences in class days
+
+/** Moodle counts absences in classes (aulas); students count class days ("posso faltar 9 vezes"). */
+export interface AbsenceDays {
+  /** Classes of a usual class day of the discipline. */
+  perDay: number
+  /** Class days missed (fractional when only part of a day was missed). */
+  absent: number
+  /** Whole class days that may be missed in the semester. */
+  allowed: number
+  /** Whole class days still allowed (0 at or over the limit). */
+  remaining: number
+}
+
+export function absenceDays(view: DisciplineView, absences = view.stats.absences): AbsenceDays {
+  const perDay = classesPerMeeting(view)
+  const allowedClasses = view.stats.allowedAbsences
+  return {
+    perDay,
+    absent: absences / perDay,
+    allowed: Math.floor(allowedClasses / perDay),
+    remaining: Math.max(0, Math.floor((allowedClasses - absences) / perDay)),
+  }
+}

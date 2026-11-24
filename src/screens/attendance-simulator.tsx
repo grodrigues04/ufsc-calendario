@@ -8,8 +8,8 @@ import { AttendanceBar } from '@/components/attendance-bar'
 import { Segmented } from '@/components/segmented'
 import { Stepper } from '@/components/stepper'
 import { EASE_OUT, SPRING_UI, TONE_SOFT, TONE_TEXT } from '@/components/tone'
-import { formatDayMonth, formatPercent, plural, weekdayShort } from '@/lib/format'
-import { budgetTone, type DisciplineView, type Meeting, type Simulation, simulate, type Tone } from '@/lib/model'
+import { formatDayCount, formatDayMonth, formatPercent, plural, weekdayShort } from '@/lib/format'
+import { absenceDays, budgetTone, type DisciplineView, type Meeting, type Simulation, simulate, type Tone } from '@/lib/model'
 
 type Mode = 'same' | 'each'
 
@@ -194,6 +194,8 @@ function ResultCard({ simulation, stepper }: { simulation: Simulation; stepper: 
   const limitedBySemester = simulation.requested > stats.upcoming.length
   // The pill follows the official rule (absence budget), the bars follow the attendance percentage.
   const outcomeTone = budgetTone(simulation.remainingAbsences, stats.allowedAbsences, simulation.failed)
+  const daysBefore = absenceDays(view)
+  const daysAfter = absenceDays(view, simulation.absences)
 
   return (
     <motion.article
@@ -218,15 +220,19 @@ function ResultCard({ simulation, stepper }: { simulation: Simulation; stepper: 
 
       <div className="mt-3.5 flex flex-wrap gap-1.5 text-xs">
         <span className="tabular rounded-full bg-secondary px-2.5 py-1">
-          Faltas {stats.absences} → <span className="font-semibold">{simulation.absences}</span> de {stats.allowedAbsences}
+          Faltas {stats.absences} → <span className="font-semibold">{simulation.absences}</span> de {stats.allowedAbsences} aulas
+        </span>
+        <span className="tabular rounded-full bg-secondary px-2.5 py-1">
+          {formatDayCount(daysBefore.absent)} → <span className="font-semibold">{formatDayCount(daysAfter.absent)}</span> de{' '}
+          {plural(daysBefore.allowed, 'dia', 'dias')}
         </span>
         <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold', TONE_SOFT[outcomeTone])}>
           {simulation.failed && <TriangleAlert className="size-3.5" />}
           {simulation.failed
             ? 'Reprovaria por falta'
-            : simulation.remainingAbsences <= 0
-              ? 'No limite de faltas'
-              : `Ainda poderia faltar ${plural(simulation.remainingAbsences, 'aula', 'aulas')}`}
+            : daysAfter.remaining === 0
+              ? 'No limite: mais um dia de falta reprova'
+              : `Ainda poderia faltar ${plural(daysAfter.remaining, 'dia', 'dias')}`}
         </span>
       </div>
       {limitedBySemester && (
