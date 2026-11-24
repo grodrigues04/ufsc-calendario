@@ -1,0 +1,136 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist/wght.css";
+
+/* Follows the system theme (no flash, no script). */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: oklch(0.982 0.002 260);
+  --foreground: oklch(0.16 0.004 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.16 0.004 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.16 0.004 260);
+  --primary: oklch(0.2 0.004 260);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.955 0.003 260);
+  --secondary-foreground: oklch(0.2 0.004 260);
+  --muted: oklch(0.955 0.003 260);
+  --muted-foreground: oklch(0.53 0.008 260);
+  --accent: oklch(0.955 0.003 260);
+  --accent-foreground: oklch(0.2 0.004 260);
+  --destructive: oklch(0.58 0.22 27);
+  --border: oklch(0.915 0.004 260);
+  --input: oklch(0.9 0.004 260);
+  --ring: oklch(0.65 0.01 260);
+  --radius: 0.875rem;
+
+  /* Attendance status */
+  --good: oklch(0.66 0.16 152);
+  --warn: oklch(0.72 0.17 58);
+  --bad: oklch(0.6 0.21 25);
+  --track: oklch(0.93 0.004 260);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: oklch(0.13 0.004 260);
+    --foreground: oklch(0.96 0.002 260);
+    --card: oklch(0.18 0.005 260);
+    --card-foreground: oklch(0.96 0.002 260);
+    --popover: oklch(0.19 0.005 260);
+    --popover-foreground: oklch(0.96 0.002 260);
+    --primary: oklch(0.94 0.002 260);
+    --primary-foreground: oklch(0.18 0.004 260);
+    --secondary: oklch(0.24 0.006 260);
+    --secondary-foreground: oklch(0.96 0.002 260);
+    --muted: oklch(0.24 0.006 260);
+    --muted-foreground: oklch(0.7 0.008 260);
+    --accent: oklch(0.24 0.006 260);
+    --accent-foreground: oklch(0.96 0.002 260);
+    --destructive: oklch(0.7 0.19 22);
+    --border: oklch(1 0 0 / 9%);
+    --input: oklch(1 0 0 / 14%);
+    --ring: oklch(0.55 0.01 260);
+
+    --good: oklch(0.74 0.16 152);
+    --warn: oklch(0.79 0.15 62);
+    --bad: oklch(0.69 0.19 24);
+    --track: oklch(0.27 0.006 260);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans antialiased;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    /* Keeps the browser's own pull-to-refresh/bounce from fighting the app's gesture. */
+    overscroll-behavior-y: none;
+  }
+  body {
+    @apply min-h-dvh bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+  button,
+  a {
+    touch-action: manipulation;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
