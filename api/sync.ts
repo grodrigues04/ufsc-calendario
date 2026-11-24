@@ -4,6 +4,7 @@
 import type { MoodleAuth, SyncRequest } from '../shared/types.js'
 import { AppError } from '../server/http.js'
 import { syncMoodle } from '../server/moodle.js'
+import { forbidden, isCrossSite } from '../server/origin.js'
 
 const MAX_KNOWN_COURSES = 20
 
@@ -40,6 +41,7 @@ function readRequest(body: unknown): SyncRequest | null {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  if (isCrossSite(request)) return forbidden()
   const input = readRequest(await request.json().catch(() => null))
   if (!input) return Response.json({ code: 'bad_request', message: 'Requisição inválida.' }, { status: 400 })
   try {
