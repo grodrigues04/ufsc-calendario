@@ -133,9 +133,10 @@ npm run painel       # painel local de uso e relatos de bug: http://127.0.0.1:45
 
 O **painel** (`panel/`) roda só neste computador: lê o Neon com o `.env.local`, decifra os relatos
 de bug com a `NOTES_SECRET` e mostra quantas contas usam o app, os acessos por dia (30 dias), o
-último acesso de cada conta (identificada só pelo começo da HMAC) e os relatos, que dá para marcar
-como resolvidos. Ele escuta só em `127.0.0.1`, recusa outros endereços (DNS rebinding) e só aceita
-ações vindas da própria página. Não vai para a Vercel (só `api/` vira função).
+último acesso de cada conta (identificada só pelo começo da HMAC) e os relatos. "Resolver e
+apagar" apaga o relato do banco, sem volta. Ele escuta só em `127.0.0.1`, recusa outros endereços
+(DNS rebinding) e só aceita ações vindas da própria página. Não vai para a Vercel (só `api/` vira
+função).
 
 Ícones do PWA: `npx pwa-assets-generator` (a partir de `public/logo.svg`).
 

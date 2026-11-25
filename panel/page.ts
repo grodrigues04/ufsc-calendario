@@ -15,7 +15,6 @@ export interface Account {
 export interface Report {
   id: string
   createdAt: Date
-  resolvedAt: Date | null
   /** Null when it could not be decrypted with this computer's NOTES_SECRET. */
   report: BugReport | null
 }
@@ -191,8 +190,6 @@ function accountsTable(data: PanelData): string {
 const DEVICES: Record<string, string> = { ios: 'iPhone', android: 'Android', outro: 'Outro aparelho' }
 
 function reportCard(item: Report, now: Date): string {
-  const action = item.resolvedAt ? 'reabrir' : 'resolver'
-  const button = item.resolvedAt ? 'Reabrir' : 'Marcar como resolvido'
   const context = item.report?.context
   const chips = context
     ? [
@@ -204,10 +201,10 @@ function reportCard(item: Report, now: Date): string {
         .map((chip) => `<span class="chip">${escape(chip)}</span>`)
         .join('')
     : ''
-  return `<article class="report${item.resolvedAt ? ' resolved' : ''}">
+  return `<article class="report">
     <header>
       <span>${moment(item.createdAt, now, '')}</span>
-      <form method="post" action="/relatos/${item.id}/${action}"><button type="submit">${button}</button></form>
+      <form method="post" action="/relatos/${item.id}/resolver"><button type="submit">Resolver e apagar</button></form>
     </header>
     ${
       item.report
@@ -218,19 +215,11 @@ function reportCard(item: Report, now: Date): string {
 }
 
 function reportsSection(data: PanelData): string {
-  const open = data.reports.filter((item) => !item.resolvedAt)
-  const resolved = data.reports.filter((item) => item.resolvedAt)
+  const count = data.reports.length
   return `<section class="card" id="relatos">
-    <h2>Relatos de bug <span class="count">${numberFormat.format(open.length)} ${open.length === 1 ? 'aberto' : 'abertos'}</span></h2>
-    <p class="muted">Anônimos: chegam só com o texto, o tipo de aparelho, a versão e a tela em que a pessoa estava.</p>
-    ${open.length ? open.map((item) => reportCard(item, data.now)).join('') : '<p class="empty">Nenhum relato aberto.</p>'}
-    ${
-      resolved.length
-        ? `<details class="resolved-list"><summary>Resolvidos (${numberFormat.format(resolved.length)})</summary>${resolved
-            .map((item) => reportCard(item, data.now))
-            .join('')}</details>`
-        : ''
-    }
+    <h2>Relatos de bug <span class="count">${numberFormat.format(count)} ${count === 1 ? 'aberto' : 'abertos'}</span></h2>
+    <p class="muted">Anônimos: chegam só com o texto, o tipo de aparelho, a versão e a tela em que a pessoa estava. Resolver apaga o relato do banco de dados, sem volta.</p>
+    ${count ? data.reports.map((item) => reportCard(item, data.now)).join('') : '<p class="empty">Nenhum relato aberto.</p>'}
   </section>`
 }
 
@@ -374,14 +363,11 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 .empty { margin-top: 14px; color: var(--text-secondary); font-size: 14px; }
 .count { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
 .report { border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-top: 12px; }
-.report.resolved { background: var(--surface-2); }
 .report header { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--text-secondary); }
 .report-text { margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .chip { font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; color: var(--text-secondary); }
-.report.resolved .chip { background: var(--surface-1); }
 .report button { font: inherit; font-size: 13px; font-weight: 600; color: var(--text-primary); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 5px 14px; cursor: pointer; }
 .report button:hover { border-color: var(--text-secondary); }
-.resolved-list { margin-top: 16px; }
 .foot { margin-top: 20px; font-size: 12px; text-align: center; }
 `

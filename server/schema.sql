@@ -24,10 +24,10 @@ create table if not exists daily_usage (
 );
 
 -- Bug reports sent from the profile. Anonymous: no user_key; the payload is bound to the id.
+-- Resolving one in the local panel deletes it.
 create table if not exists bug_reports (
   id uuid primary key,
   created_at timestamptz not null default now(),
-  resolved_at timestamptz,
   payload text not null
 );
 create index if not exists bug_reports_created_at on bug_reports (created_at desc);

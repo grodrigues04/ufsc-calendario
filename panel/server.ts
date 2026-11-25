@@ -16,7 +16,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const HEADERS = {
   'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
   'X-Content-Type-Options': 'nosniff',
-  'Referrer-Policy': 'no-referrer',
+  // Not no-referrer: with it, browsers send `Origin: null` on form posts and every action is refused.
+  'Referrer-Policy': 'same-origin',
   'Cache-Control': 'no-store',
 }
 
@@ -36,7 +37,7 @@ async function loadData(): Promise<PanelData> {
         from app_usage u full join manual_notes n on n.user_key = u.user_key`,
     sql`select to_char(day, 'YYYY-MM-DD') as day, users from daily_usage
         where day > (now() at time zone 'America/Sao_Paulo')::date - 40`,
-    sql`select id, created_at, resolved_at, payload from bug_reports order by created_at desc limit 300`,
+    sql`select id, created_at, payload from bug_reports order by created_at desc limit 300`,
     sql`select pg_database_size(current_database())::text as bytes`,
   ])
   return {
@@ -58,7 +59,7 @@ async function loadData(): Promise<PanelData> {
       } catch {
         // Shown as unreadable: written with another NOTES_SECRET.
       }
-      return { id, createdAt: toDate(row.created_at)!, resolvedAt: toDate(row.resolved_at), report }
+      return { id, createdAt: toDate(row.created_at)!, report }
     }),
     databaseBytes: Number(size[0]?.bytes ?? 0),
     now: new Date(),
@@ -83,14 +84,14 @@ async function handle(request: IncomingMessage, response: ServerResponse): Promi
     }
   }
 
-  const action = url.pathname.match(/^\/relatos\/([^/]+)\/(resolver|reabrir)$/)
-  if (request.method === 'POST' && action) {
+  const resolve = url.pathname.match(/^\/relatos\/([^/]+)\/resolver$/)
+  if (request.method === 'POST' && resolve) {
     // Forms of other websites can post to localhost too: only this page's own forms count.
     if (!ORIGINS.has(request.headers.origin ?? '')) return send(response, 403, 'Origem não permitida.')
-    const [, id, verb] = action
+    const [, id] = resolve
     if (!UUID.test(id)) return send(response, 404, 'Relato não encontrado.')
-    if (verb === 'resolver') await sql`update bug_reports set resolved_at = now() where id = ${id} and resolved_at is null`
-    else await sql`update bug_reports set resolved_at = null where id = ${id}`
+    // A resolved report has nothing left to do in the database.
+    await sql`delete from bug_reports where id = ${id}`
     response.writeHead(303, { ...HEADERS, Location: '/#relatos' })
     return void response.end()
   }
