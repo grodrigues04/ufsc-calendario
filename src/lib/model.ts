@@ -512,6 +512,41 @@ export function manualStats(view: DisciplineView, records: Array<{ date: string 
   }
 }
 
+// ---------------------------------------------------------------- simulation from the Manual tab
+
+// Without Moodle sessions the CAGR grid is projected this far ahead (enough to go past the limit).
+const PROJECTION_DAYS = 70
+
+/** The discipline's next class days (YYYY-MM-DD): Moodle sessions when there are any (they skip holidays), else the CAGR grid. */
+export function upcomingClassDays(view: DisciplineView, now: Date): string[] {
+  const meetings = view.stats.upcoming.length
+    ? view.stats.upcoming
+    : projectSchedule(view.schedule, now, PROJECTION_DAYS).filter((meeting) => meeting.end > now)
+  return [...new Set(meetings.map((meeting) => isoDay(meeting.start)))]
+}
+
+export interface ManualSimulation {
+  view: DisciplineView
+  requested: number
+  /** Class days that would be missed (YYYY-MM-DD). */
+  missed: string[]
+  /** Class days ahead that can be simulated. */
+  available: number
+  missedClasses: number
+  /** The Manual tab now, and with the missed days added (same rules: one absence = one class day). */
+  before: ManualStats
+  after: ManualStats
+}
+
+/** Misses the next `count` class days on top of the absences noted in the Manual tab. */
+export function simulateManual(view: DisciplineView, records: Array<{ date: string | null }>, count: number, now: Date): ManualSimulation {
+  const upcoming = upcomingClassDays(view, now)
+  const missed = upcoming.slice(0, Math.max(0, count))
+  const before = manualStats(view, records)
+  const after = manualStats(view, [...records, ...missed.map((date) => ({ date }))])
+  return { view, requested: count, missed, available: upcoming.length, missedClasses: after.classes - before.classes, before, after }
+}
+
 // ---------------------------------------------------------------- absences in class days
 
 /** Moodle counts absences in classes (aulas); students count class days ("posso faltar 9 vezes"). */

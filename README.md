@@ -16,7 +16,10 @@ idUFSC e o app só monta a interface: não há banco de dados, os dados ficam no
   - *Simulador*: escolha uma ou mais disciplinas e quantas vezes faltar (igual para todas ou por
     disciplina). A simulação usa as próximas aulas reais de cada disciplina a partir de agora (numa
     terça, uma disciplina de segunda e quarta falta na quarta e na segunda seguinte) e compara a
-    barra atual com a barra depois das faltas.
+    barra atual com a barra depois das faltas. Dá para partir das faltas do Moodle (porcentagem
+    sobre as aulas que já tiveram chamada) ou das faltas da aba Manual (cada falta é um dia de aula,
+    e a porcentagem é sobre todas as aulas do semestre, como na aba Manual); a escolha fica salva no
+    aparelho. Sem lista de presença no Moodle, o simulador oferece a contagem da aba Manual.
   - *Manual*: o estudante registra cada dia de aula que faltou, com uma anotação opcional
     ("consulta médica"). Só essas faltas contam. Uma falta = um dia de aula, e vale as aulas daquele
     dia da semana na grade do CAGR. Aulas do semestre = aulas por semana × 18 semanas; o limite é
