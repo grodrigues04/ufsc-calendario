@@ -77,15 +77,24 @@ async function callWs<T>(token: string, wsfunction: string, args: Record<string,
 const identities = new Map<string, { userId: number; expires: number }>()
 const IDENTITY_TTL_MS = 10 * 60_000
 
+/** The account behind a token. Without a valid id it fails: stored data must never fall to a shared key. */
+async function siteUserId(token: string): Promise<number> {
+  const { userid } = await callWs<{ userid?: unknown }>(token, 'core_webservice_get_site_info')
+  if (typeof userid !== 'number' || !Number.isInteger(userid) || userid <= 0) {
+    throw new AppError('ufsc_unavailable', 'O Moodle respondeu de um jeito inesperado. Tente de novo em instantes.', 502)
+  }
+  return userid
+}
+
 /** Asks Moodle who owns the token (cached briefly by a hash of the token, never the token itself). */
 export async function getMoodleUserId(token: string): Promise<number> {
   const cacheKey = createHash('sha256').update(token).digest('hex')
   const cached = identities.get(cacheKey)
   if (cached && cached.expires > Date.now()) return cached.userId
-  const site = await callWs<{ userid: number }>(token, 'core_webservice_get_site_info')
-  identities.set(cacheKey, { userId: site.userid, expires: Date.now() + IDENTITY_TTL_MS })
+  const userId = await siteUserId(token)
+  identities.set(cacheKey, { userId, expires: Date.now() + IDENTITY_TTL_MS })
   if (identities.size > 1000) identities.delete(identities.keys().next().value!)
-  return site.userid
+  return userId
 }
 
 // ---------------------------------------------------------------- login
@@ -124,9 +133,9 @@ export async function loginMoodle(
   if (!token) {
     throw new AppError('moodle_token_failed', 'O Moodle não liberou o acesso do app para a sua conta.', 502)
   }
-  const site = await callWs<{ userid: number }>(token, 'core_webservice_get_site_info')
+  const userId = await siteUserId(token)
   const session = client.jar.find(MOODLE_HOST, (name) => name.startsWith('MoodleSession'))
-  return { client, auth: { token, privateToken: privateToken || null, userId: site.userid, session }, skippedCollecta }
+  return { client, auth: { token, privateToken: privateToken || null, userId, session }, skippedCollecta }
 }
 
 // ---------------------------------------------------------------- sync

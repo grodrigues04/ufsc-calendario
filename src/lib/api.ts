@@ -1,3 +1,4 @@
+import type { BugReport, ReportRequest } from '@shared/report'
 import type { ApiError, ErrorCode, LoginEvent, LoginResult, LoginStep, SyncRequest, SyncResult } from '@shared/types'
 
 export class ApiFailure extends Error {
@@ -64,4 +65,19 @@ export async function sync(request: SyncRequest): Promise<SyncResult> {
   }
   if (!response.ok) throw await readError(response)
   return (await response.json()) as SyncResult
+}
+
+/** Sends an anonymous bug report. The token only proves that a signed-in student sent it. */
+export async function reportBug(token: string, report: BugReport): Promise<void> {
+  let response: Response
+  try {
+    response = await fetch('/api/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, report } satisfies ReportRequest),
+    })
+  } catch {
+    throw OFFLINE
+  }
+  if (!response.ok) throw await readError(response)
 }

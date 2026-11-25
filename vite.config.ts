@@ -86,6 +86,10 @@ export default defineConfig({
       },
     }),
   ],
+  define: {
+    // Which build a bug report came from.
+    __APP_VERSION__: JSON.stringify(process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'local'),
+  },
   resolve: {
     alias: {
       '@shared': path.resolve(import.meta.dirname, './shared'),

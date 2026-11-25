@@ -1,8 +1,10 @@
 import { cn } from 'cn'
-import { Download, LogOut, RefreshCw, Share } from 'lucide-react'
+import { Bug, Download, Info, LogOut, type LucideIcon, RefreshCw, Share } from 'lucide-react'
 import { motion } from 'motion/react'
-import { useState } from 'react'
+import { type ComponentProps, useState } from 'react'
 import { toast } from 'sonner'
+import { BugReportSheet } from '@/components/bug-report'
+import { HowItWorksSheet } from '@/components/how-it-works'
 import { Button } from '@/components/ui/button'
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from '@/components/ui/drawer'
 import { formatSyncedAgo } from '@/lib/format'
@@ -29,12 +31,14 @@ export function ProfileDrawer() {
   const signOut = useApp((state) => state.signOut)
   const now = useClock((state) => state.now)
   const { canInstall, showIosHint, install } = useInstallPrompt()
+  // Kept here, outside the sheet: a half-written bug report survives closing it.
+  const [reportDraft, setReportDraft] = useState('')
   useBackToClose(open, () => setOpen(false))
 
   return (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerContent>
-        <div className="mx-auto w-full max-w-lg px-5 pt-4 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+        <div className="mx-auto min-h-0 w-full max-w-lg overflow-y-auto overscroll-contain px-5 pt-4 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
           <div className="flex items-center gap-3">
             <span className="grid size-12 place-items-center rounded-full bg-secondary text-base font-semibold">
               {initials(student?.name)}
@@ -68,6 +72,15 @@ export function ProfileDrawer() {
           </div>
 
           <NewsSettings />
+
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <HowItWorksSheet trigger={<ProfileTile icon={Info} label="Como funciona" />} />
+            <BugReportSheet
+              draft={reportDraft}
+              onDraftChange={setReportDraft}
+              trigger={<ProfileTile icon={Bug} label="Relatar um bug" />}
+            />
+          </div>
 
           {canInstall && (
             <Button size="lg" className="mt-4 h-11 w-full rounded-full" onClick={() => void install()}>
@@ -113,6 +126,23 @@ export function ProfileDrawer() {
         </div>
       </DrawerContent>
     </Drawer>
+  )
+}
+
+/** Opens a sheet over the profile (it receives the trigger's props and ref). */
+function ProfileTile({ icon: Icon, label, className, ...props }: { icon: LucideIcon; label: string } & ComponentProps<'button'>) {
+  return (
+    <button
+      type="button"
+      {...props}
+      className={cn(
+        'flex items-center gap-2.5 rounded-2xl bg-secondary/70 px-4 py-3.5 text-left text-sm font-semibold transition-colors active:bg-secondary',
+        className,
+      )}
+    >
+      <Icon className="size-[18px] shrink-0 text-muted-foreground" />
+      {label}
+    </button>
   )
 }
 

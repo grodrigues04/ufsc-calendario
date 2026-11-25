@@ -34,22 +34,45 @@ export const useUi = create<UiState>()((set) => ({
   closeAbsence: () => set({ absence: null }),
 }))
 
-/** Android/browser "back" closes an open sheet instead of leaving the screen. */
+// Sheets open right now, oldest first. A sheet can open over another ("Como funciona" over the
+// profile): "back" closes only the one on top.
+const openSheets: Array<() => void> = []
+// history.back() calls made below after a sheet closed by swipe or button: their popstate is not a "back".
+let ownBacks = 0
+let listening = false
+
+function onPopState(): void {
+  if (ownBacks > 0) {
+    ownBacks--
+    return
+  }
+  openSheets.at(-1)?.()
+}
+
+/** Android/browser "back" closes the sheet on top instead of leaving the screen. */
 export function useBackToClose(open: boolean, onClose: () => void): void {
   const close = useRef(onClose)
   close.current = onClose
   useEffect(() => {
     if (!open) return
-    window.history.pushState({ sheet: true }, '')
+    if (!listening) {
+      window.addEventListener('popstate', onPopState)
+      listening = true
+    }
     let closedByBack = false
-    const onPop = () => {
+    const closeByBack = () => {
       closedByBack = true
       close.current()
     }
-    window.addEventListener('popstate', onPop)
+    openSheets.push(closeByBack)
+    window.history.pushState({ sheet: true }, '')
     return () => {
-      window.removeEventListener('popstate', onPop)
-      if (!closedByBack && window.history.state?.sheet) window.history.back()
+      const index = openSheets.indexOf(closeByBack)
+      if (index >= 0) openSheets.splice(index, 1)
+      if (!closedByBack && window.history.state?.sheet) {
+        ownBacks++
+        window.history.back()
+      }
     }
   }, [open])
 }
