@@ -35,7 +35,8 @@ function DrawerOverlay({
       data-slot="drawer-overlay"
       className={cn(
         // No backdrop blur: a full-screen blur makes the sheet animation drop frames on mid-range phones.
-        "fixed inset-0 z-50 bg-black/30 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        // touch-none: dragging on the dimmed area must not scroll the page behind it.
+        "fixed inset-0 z-50 touch-none bg-black/30 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
