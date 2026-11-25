@@ -29,6 +29,8 @@ interface NotesState {
   notes: ManualNotes
   /** Local changes the server has not confirmed yet. */
   dirty: boolean
+  /** The account's saved notes were loaded since the app opened (an empty list means "none"). */
+  loaded: boolean
   status: SyncState
   /** Returns the new record id (used by "Desfazer"). */
   addAbsence: (semester: string, disciplineId: string, input: AbsenceInput) => string
@@ -56,6 +58,7 @@ export const useNotes = create<NotesState>()(
         ownerId: null,
         notes: {},
         dirty: false,
+        loaded: false,
         status: 'idle',
         addAbsence: (semester, disciplineId, input) => {
           const id = newId()
@@ -86,8 +89,11 @@ export const useNotes = create<NotesState>()(
 )
 
 const SAVE_DELAY_MS = 700
+// Coming back to the app reloads the saved notes (other devices, or a failed load) at most this often.
+const RELOAD_AFTER_MS = 60_000
 let saveTimer: number | undefined
 let inFlight: Promise<void> | null = null
+let lastSyncAt = 0
 
 function scheduleSave(): void {
   window.clearTimeout(saveTimer)
@@ -128,7 +134,8 @@ export function syncNotes(): Promise<void> {
           for (const [id, record] of Object.entries(records)) merged = setRecord(merged, semester, discipline, id, record)
         }
       }
-      useNotes.setState({ notes: merged, dirty: !sameNotes(merged, saved), status: 'idle' })
+      useNotes.setState({ notes: merged, dirty: !sameNotes(merged, saved), loaded: true, status: 'idle' })
+      lastSyncAt = Date.now()
     } catch {
       useNotes.setState({ status: navigator.onLine ? 'error' : 'offline' })
     } finally {
@@ -147,20 +154,32 @@ export async function flushNotes(): Promise<void> {
 
 export function clearNotes(): void {
   window.clearTimeout(saveTimer)
-  useNotes.setState({ ownerId: null, notes: {}, dirty: false, status: 'idle' })
+  useNotes.setState({ ownerId: null, notes: {}, dirty: false, loaded: false, status: 'idle' })
 }
 
-/** Loads the saved notes when the app opens, and retries pending changes when back online. */
+/**
+ * Loads the saved notes when the app opens, retries pending changes when back online, and loads
+ * again when the app comes back to the screen (a failed load is never left as an empty list).
+ */
 export function useNotesSync(userId: number | null): void {
   useEffect(() => {
     if (userId === null) return
     if (useNotes.getState().ownerId !== userId) {
       // Another account used this device: its notes are not this student's.
-      useNotes.setState({ ownerId: userId, notes: {}, dirty: false, status: 'idle' })
+      useNotes.setState({ ownerId: userId, notes: {}, dirty: false, loaded: false, status: 'idle' })
     }
     void syncNotes()
     const onOnline = () => void syncNotes()
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      const { loaded, dirty, status } = useNotes.getState()
+      if (!loaded || dirty || status === 'error' || Date.now() - lastSyncAt > RELOAD_AFTER_MS) void syncNotes()
+    }
     window.addEventListener('online', onOnline)
-    return () => window.removeEventListener('online', onOnline)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [userId])
 }

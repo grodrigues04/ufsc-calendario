@@ -9,27 +9,43 @@ import { EASE_OUT, SPRING_UI, TONE_TEXT } from '@/components/tone'
 import { formatDayMonth, plural, weekdayShort } from '@/lib/format'
 import { type DisciplineView, manualStats } from '@/lib/model'
 import { syncNotes, useNotes } from '@/lib/notes'
-import { useApp } from '@/lib/store'
+import { useSemester } from '@/lib/store'
 import { useUi } from '@/lib/ui'
 
 const STATUS = {
-  idle: { icon: CloudCheck, label: 'Salvo na sua conta', spin: false },
-  saving: { icon: LoaderCircle, label: 'Salvando…', spin: true },
-  offline: { icon: CloudOff, label: 'Salvo no celular, sincroniza quando voltar a internet', spin: false },
-  error: { icon: TriangleAlert, label: 'Salvo no celular, não consegui sincronizar', spin: false },
+  loading: { icon: LoaderCircle, label: 'Carregando suas faltas salvas na conta…', spin: true, problem: false },
+  idle: { icon: CloudCheck, label: 'Salvo na sua conta', spin: false, problem: false },
+  saving: { icon: LoaderCircle, label: 'Salvando na sua conta…', spin: true, problem: false },
+  offline: { icon: CloudOff, label: 'Sem internet: ficou no celular e vai para a conta quando a internet voltar', spin: false, problem: false },
+  offlineSaved: { icon: CloudOff, label: 'Sem internet: mostrando as faltas guardadas neste celular', spin: false, problem: false },
+  saveError: { icon: TriangleAlert, label: 'Não consegui salvar na sua conta (ficou só no celular). Toque para tentar de novo', spin: false, problem: true },
+  loadError: { icon: TriangleAlert, label: 'Não consegui carregar as faltas salvas na sua conta. Toque para tentar de novo', spin: false, problem: true },
 } as const
 
 type DatedRecord = AbsenceRecord & { id: string }
 
 export function ManualView({ views }: { views: DisciplineView[] }) {
-  const semester = useApp((state) => state.student?.semester || state.sync?.semester || '')
+  const semester = useSemester()
   const notes = useNotes((state) => state.notes)
-  const status = useNotes((state) => (state.dirty && state.status === 'idle' ? 'saving' : state.status))
+  const status = useNotes((state): keyof typeof STATUS => {
+    if (state.status === 'error') return state.dirty ? 'saveError' : 'loadError'
+    if (state.status === 'offline') return state.dirty ? 'offline' : 'offlineSaved'
+    if (!state.loaded) return 'loading'
+    return state.dirty || state.status === 'saving' ? 'saving' : 'idle'
+  })
   const Status = STATUS[status]
   const recordsByDiscipline = useMemo(
     () => new Map(views.map((view) => [view.id, activeRecords(notes, semester, view.id)])),
     [notes, semester, views],
   )
+  // Saved absences of disciplines missing from the current list are shown, never hidden.
+  const others = useMemo(() => {
+    const known = new Set(views.map((view) => view.id))
+    return Object.keys(notes[semester] ?? {})
+      .filter((id) => !known.has(id))
+      .map((id) => ({ id, records: activeRecords(notes, semester, id) }))
+      .filter((entry) => entry.records.length > 0)
+  }, [notes, semester, views])
 
   return (
     <div className="space-y-3">
@@ -47,11 +63,11 @@ export function ManualView({ views }: { views: DisciplineView[] }) {
           type="button"
           onClick={() => void syncNotes()}
           className={cn(
-            'mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium',
-            status === 'error' ? 'text-bad' : 'text-muted-foreground',
+            'mt-2.5 inline-flex items-start gap-1.5 text-left text-xs font-medium',
+            Status.problem ? 'text-bad' : 'text-muted-foreground',
           )}
         >
-          <Status.icon className={cn('size-3.5', Status.spin && 'animate-spin')} />
+          <Status.icon className={cn('mt-px size-3.5 shrink-0', Status.spin && 'animate-spin')} />
           {Status.label}
         </button>
       </motion.section>
@@ -59,7 +75,64 @@ export function ManualView({ views }: { views: DisciplineView[] }) {
       {views.map((view, index) => (
         <ManualRow key={view.id} view={view} index={index} records={recordsByDiscipline.get(view.id) ?? []} />
       ))}
+
+      {others.map(({ id, records }, index) => (
+        <OtherDisciplineRow key={id} id={id} records={records} index={views.length + index} />
+      ))}
     </div>
+  )
+}
+
+/** Absences saved for a discipline that is not in the current list (e.g. the CAGR did not answer at login). */
+function OtherDisciplineRow({ id, records, index }: { id: string; records: DatedRecord[]; index: number }) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: EASE_OUT, delay: 0.04 + Math.min(index, 8) * 0.04 }}
+      className="rounded-3xl border border-dashed bg-card px-4 pt-3.5 pb-3"
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="truncate font-semibold">{id}</span>
+        <span className="tabular shrink-0 text-sm font-semibold">{plural(records.length, 'falta', 'faltas')}</span>
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        Esta disciplina não está na sua lista agora, mas as faltas continuam salvas na sua conta. Ela volta ao normal quando
+        aparecer de novo na sua grade.
+      </p>
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        aria-expanded={expanded}
+        className="mt-3 flex w-full items-center justify-between border-t pt-2.5 text-[13px] font-medium text-muted-foreground"
+      >
+        {expanded ? 'Esconder faltas' : `Ver faltas (${records.length})`}
+        <motion.span animate={{ rotate: expanded ? 180 : 0 }} transition={SPRING_UI}>
+          <ChevronDown className="size-4" />
+        </motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.ul
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.26, ease: EASE_OUT }}
+            className="overflow-hidden"
+          >
+            {records.map((record) => (
+              <li key={record.id} className="flex items-center gap-3 py-2">
+                <span className="tabular w-[4.5rem] shrink-0 text-sm font-medium">{recordDate(record)}</span>
+                <span className={cn('min-w-0 flex-1 truncate text-sm', record.note ? '' : 'text-muted-foreground')}>
+                  {record.note || 'Sem anotação'}
+                </span>
+              </li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
+    </motion.article>
   )
 }
 

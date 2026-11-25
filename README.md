@@ -21,7 +21,11 @@ idUFSC e o app só monta a interface: não há banco de dados, os dados ficam no
     ("consulta médica"). Só essas faltas contam. Uma falta = um dia de aula, e vale as aulas daquele
     dia da semana na grade do CAGR. Aulas do semestre = aulas por semana × 18 semanas; o limite é
     25% delas, mostrado em dias: Redes (2 + 2 aulas por semana) tem 72 aulas, pode faltar 18 aulas,
-    ou seja, 9 dias; a 10ª falta deixa a presença em 72%.
+    ou seja, 9 dias; a 10ª falta deixa a presença em 72%. O estado da conta fica visível (salvando,
+    salvo, sem internet, erro ao salvar ou ao carregar, com toque para tentar de novo), o app
+    recarrega as faltas da conta ao voltar para a tela, faltas de uma disciplina que não está na
+    lista atual aparecem num cartão à parte (nunca somem), e "Sair" avisa antes de apagar faltas que
+    ainda não chegaram à conta.
 - **Atividades**: o que ainda precisa ser feito, com prazo e disciplina, agrupado por data
   (atrasadas, hoje, amanhã, próximos 7 dias, mais adiante). Não aparecem atividades entregues
   (pelo estudante ou pelo grupo), já avaliadas (provas em sala), encerradas para envio ou escolhas

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { dayDiff, formatDayMonth, plural, weekdayShort } from '@/lib/format'
 import { classesOnDate, type DisciplineView, isoDay, recentClassDays } from '@/lib/model'
 import { useNotes } from '@/lib/notes'
-import { useApp, useClock } from '@/lib/store'
+import { useClock, useSemester } from '@/lib/store'
 import { useDisciplines } from '@/lib/sync'
 import { type AbsenceSheet, useBackToClose, useUi } from '@/lib/ui'
 import { SPRING_UI } from './tone'
@@ -45,7 +45,7 @@ function dayLabel(day: string, now: Date): string {
 
 function AbsenceForm({ sheet, view, onDone }: { sheet: AbsenceSheet; view: DisciplineView; onDone: () => void }) {
   const now = useClock((state) => state.now)
-  const semester = useApp((state) => state.student?.semester || state.sync?.semester || '')
+  const semester = useSemester()
   const notes = useNotes((state) => state.notes)
   const { addAbsence, updateAbsence, deleteAbsence } = useNotes.getState()
   const records = useMemo(() => activeRecords(notes, semester, view.id), [notes, semester, view.id])

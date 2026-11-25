@@ -8,7 +8,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from '@/compone
 import { formatSyncedAgo } from '@/lib/format'
 import { useInstallPrompt } from '@/lib/install'
 import { clearNews } from '@/lib/inbox'
-import { clearNotes, flushNotes } from '@/lib/notes'
+import { clearNotes, flushNotes, useNotes } from '@/lib/notes'
 import { disableBackgroundNews, enableBackgroundNews, useBackgroundNews } from '@/lib/notify'
 import { useApp, useClock } from '@/lib/store'
 import { syncNow } from '@/lib/sync'
@@ -87,12 +87,21 @@ export function ProfileDrawer() {
             size="lg"
             className="mt-4 h-11 w-full rounded-full"
             onClick={async () => {
+              const leave = async () => {
+                clearNotes()
+                await clearNews()
+                signOut()
+                toast('Você saiu', { description: 'Os dados foram apagados deste aparelho. Suas faltas anotadas continuam salvas na sua conta.' })
+              }
               setOpen(false)
               await flushNotes()
-              clearNotes()
-              await clearNews()
-              signOut()
-              toast('Você saiu', { description: 'Os dados foram apagados deste aparelho. Suas faltas anotadas continuam salvas na sua conta.' })
+              if (!useNotes.getState().dirty) return leave()
+              // Never drop absences that only exist on this phone without asking.
+              toast.error('Algumas faltas manuais ainda não foram salvas na sua conta', {
+                description: 'Elas estão só neste celular. Saia com internet, ou elas se perdem.',
+                duration: 12_000,
+                action: { label: 'Sair mesmo assim', onClick: () => void leave() },
+              })
             }}
           >
             <LogOut />

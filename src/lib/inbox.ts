@@ -10,7 +10,7 @@ import { kvDelete, kvGet, kvSet } from './kv'
 import { buildDisciplines } from './model'
 import { detectNews, MAX_INBOX, type NewsItem, type NewsSnapshot, newsText, type SeenState } from './news'
 import { useNotes } from './notes'
-import { useApp } from './store'
+import { useApp, useSemester } from './store'
 import { useUi } from './ui'
 
 interface InboxState {
@@ -38,7 +38,7 @@ export const useInbox = create<InboxState>()((set, get) => ({
 export function useVisibleNews(): NewsItem[] {
   const items = useInbox((state) => state.items)
   const notes = useNotes((state) => state.notes)
-  const semester = useApp((state) => state.student?.semester || state.sync?.semester || '')
+  const semester = useSemester()
   return useMemo(
     () =>
       items.filter(
