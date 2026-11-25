@@ -276,20 +276,29 @@ export async function syncMoodle(
         .map(([courseId, cmids]) => [courseId, cmids.filter((cmid) => !knownTargets.get(courseId)?.includes(cmid))] as const)
         .filter(([, cmids]) => cmids.length > 0),
     )
-    if (missing.size && !issue) {
+    if (missing.size && session) {
       const extra = await readAttendance({ ...auth, session }, missing)
-      for (const [courseId, entry] of Object.entries(extra.attendance)) {
-        const merged = attendance[Number(courseId)] ?? { cmids: [], sessions: [] }
+      for (const courseId of missing.keys()) {
+        const entry = extra.attendance[courseId]
+        if (!entry) {
+          // Half a course would look complete: it counts as not read.
+          delete attendance[courseId]
+          continue
+        }
+        const merged = attendance[courseId] ?? { cmids: [], sessions: [] }
         merged.cmids.push(...entry.cmids)
         merged.sessions = [...merged.sessions, ...entry.sessions].sort((a, b) => a.start.localeCompare(b.start))
-        attendance[Number(courseId)] = merged
+        attendance[courseId] = merged
       }
       session = extra.session ?? session
-      issue = extra.issue
+      issue = issue ?? extra.issue
     }
   }
-  // Attendance not read because the course contents failed: the app keeps what it had.
-  if (!issue && [...contentsFailed].some((courseId) => !attendance[courseId])) issue = 'session_failed'
+  // Courses with an attendance activity (or whose contents did not load) that were not read:
+  // the app keeps their last reading and tells the student it could not update them.
+  const attendanceFailed = [...new Set([...attendanceCmids.keys(), ...contentsFailed])].filter((courseId) => !attendance[courseId])
+  // Older app versions only look at attendanceIssue: with it set they keep the attendance they had.
+  if (attendanceFailed.length && !issue) issue = 'session_failed'
 
   return {
     syncedAt: new Date().toISOString(),
@@ -300,6 +309,7 @@ export async function syncMoodle(
     groupSubmissions,
     session,
     attendanceIssue: issue,
+    attendanceFailed,
   }
 }
 
@@ -572,7 +582,9 @@ function toIso(seconds: number): string {
 /**
  * The "Presença" (mod_attendance) web services are not available to the mobile token, so the
  * sessions are read from the activity page (GET only, read-only). The page needs a web session:
- * the one created at login, or a new one opened with the mobile autologin key.
+ * the one the app saved, or a new login with the app's autologin key (no password needed).
+ * Pages that do not open get a new login and one more try; courses still unread are left out
+ * (the caller reports them as failed, and the app shows that it could not update them).
  */
 async function readAttendance(
   auth: MoodleAuth,
@@ -584,66 +596,60 @@ async function readAttendance(
 
   const pageUrl = (cmid: number) => `${MOODLE_URL}/mod/attendance/view.php?id=${cmid}&view=5`
   const client = new HttpClient()
+  const pages: Array<string | null> = targets.map(() => null)
   let session = auth.session
-  let firstPage: string | null = null
+  let loggedIn = false
+  let loginIssue: AttendanceIssue | null = null
 
-  if (session) {
-    client.jar.add(MOODLE_HOST, session)
-    const response = await client.request(pageUrl(targets[0].cmid))
-    if (response.status === 200) {
-      const html = await response.text()
-      if (isAttendancePage(html)) firstPage = html
-    } else {
-      await response.body?.cancel()
+  /** New web session landing on the page at `index` (Moodle allows one every 6 minutes). */
+  const logIn = async (index: number): Promise<boolean> => {
+    loggedIn = true
+    const login = await openWebSession(auth, pageUrl(targets[index].cmid))
+    if ('issue' in login) {
+      loginIssue = login.issue
+      return false
     }
+    session = login.session
+    client.jar.add(MOODLE_HOST, login.session)
+    pages[index] = login.html
+    return true
   }
-
-  if (firstPage === null) {
-    if (!auth.privateToken) return { attendance, session: null, issue: 'session_failed' }
+  const readPage = async (cmid: number): Promise<string | null> => {
     try {
-      const key = await callWs<{ key: string; autologinurl: string }>(
-        auth.token,
-        'tool_mobile_get_autologin_key',
-        { privatetoken: auth.privateToken },
-        MOODLE_APP_USER_AGENT,
-      )
-      const freshClient = new HttpClient()
-      const url = `${key.autologinurl}?userid=${auth.userId}&key=${key.key}&urltogo=${encodeURIComponent(pageUrl(targets[0].cmid))}`
-      const step = await freshClient.follow(url)
-      const html = await step.response.text()
-      session = freshClient.jar.find(MOODLE_HOST, (name) => name.startsWith('MoodleSession'))
-      if (!step.url.startsWith(`${MOODLE_URL}/mod/attendance/`) || !session || !isAttendancePage(html)) {
-        return { attendance, session: null, issue: 'session_failed' }
-      }
-      client.jar.add(MOODLE_HOST, session)
-      firstPage = html
-    } catch (error) {
-      if (error instanceof AppError) throw error
-      const lockout = error instanceof MoodleWsError && error.errorcode === 'autologinkeygenerationlockout'
-      return { attendance, session: null, issue: lockout ? 'lockout' : 'session_failed' }
-    }
-  }
-
-  const pages = await Promise.all(
-    targets.map(async ({ cmid }, index) => {
-      if (index === 0) return firstPage
-      try {
-        const response = await client.request(pageUrl(cmid))
-        if (response.status !== 200) {
-          await response.body?.cancel()
-          return null
-        }
-        const html = await response.text()
-        return isAttendancePage(html) ? html : null
-      } catch {
+      const response = await client.request(pageUrl(cmid))
+      if (response.status !== 200) {
+        await response.body?.cancel()
         return null
       }
-    }),
-  )
-  // A page that did not load says nothing about its course. Leaving the course out keeps the
-  // attendance the app already had; an empty list would read as "no attendance in Moodle".
-  const failed = new Set(targets.filter((_, index) => pages[index] === null).map(({ courseId }) => courseId))
+      const html = await response.text()
+      return isAttendancePage(html) ? html : null
+    } catch {
+      return null
+    }
+  }
+  const readMissing = async () => {
+    const missing = targets.flatMap((_, index) => (pages[index] === null ? [index] : []))
+    const htmls = await Promise.all(missing.map((index) => readPage(targets[index].cmid)))
+    missing.forEach((index, position) => {
+      pages[index] = htmls[position]
+    })
+  }
 
+  // The first page tells whether the saved session still works; if not, log in again.
+  if (session) {
+    client.jar.add(MOODLE_HOST, session)
+    pages[0] = await readPage(targets[0].cmid)
+  }
+  if (pages[0] === null && !(await logIn(0))) return { attendance, session: null, issue: loginIssue ?? 'session_failed' }
+  await readMissing()
+  // A page that still did not open: a new login (unless this session was just opened), then one more try.
+  if (pages.includes(null)) {
+    if (!loggedIn) await logIn(pages.indexOf(null))
+    await readMissing()
+  }
+
+  // Half a course would look complete: a course with any unread page counts as not read.
+  const failed = new Set(targets.filter((_, index) => pages[index] === null).map(({ courseId }) => courseId))
   targets.forEach(({ courseId, cmid }, index) => {
     const page = pages[index]
     if (page === null || failed.has(courseId)) return
@@ -656,7 +662,34 @@ async function readAttendance(
   return {
     attendance,
     session: client.jar.find(MOODLE_HOST, (name) => name.startsWith('MoodleSession')) ?? session,
-    issue: failed.size ? 'session_failed' : null,
+    issue: failed.size ? (loginIssue ?? 'session_failed') : null,
+  }
+}
+
+/** Logs in to the Moodle website with the app's autologin key and opens `landingUrl`. */
+async function openWebSession(
+  auth: MoodleAuth,
+  landingUrl: string,
+): Promise<{ session: string; html: string | null } | { issue: AttendanceIssue }> {
+  if (!auth.privateToken) return { issue: 'session_failed' }
+  try {
+    const key = await callWs<{ key: string; autologinurl: string }>(
+      auth.token,
+      'tool_mobile_get_autologin_key',
+      { privatetoken: auth.privateToken },
+      MOODLE_APP_USER_AGENT,
+    )
+    const client = new HttpClient()
+    const step = await client.follow(`${key.autologinurl}?userid=${auth.userId}&key=${key.key}&urltogo=${encodeURIComponent(landingUrl)}`)
+    const html = await step.response.text()
+    const session = client.jar.find(MOODLE_HOST, (name) => name.startsWith('MoodleSession'))
+    // Landing on the page means Moodle took the key; the page itself may still have failed.
+    if (!session || !step.url.startsWith(`${MOODLE_URL}/mod/attendance/`)) return { issue: 'session_failed' }
+    return { session, html: isAttendancePage(html) ? html : null }
+  } catch (error) {
+    if (error instanceof AppError) throw error
+    const lockout = error instanceof MoodleWsError && error.errorcode === 'autologinkeygenerationlockout'
+    return { issue: lockout ? 'lockout' : 'session_failed' }
   }
 }
 

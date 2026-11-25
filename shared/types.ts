@@ -40,6 +40,8 @@ export interface AttendanceSession {
 export interface CourseAttendance {
   cmids: number[]
   sessions: AttendanceSession[]
+  /** Set by the app: when these sessions were read from Moodle (ISO). */
+  readAt?: string
 }
 
 export interface Course {
@@ -102,6 +104,8 @@ export interface SyncResult {
   groupSubmissions: GroupSubmission[]
   session: string | null
   attendanceIssue: AttendanceIssue | null
+  /** Courses whose attendance could not be read, even after logging in to Moodle again. */
+  attendanceFailed?: number[]
 }
 
 export interface LoginResult {

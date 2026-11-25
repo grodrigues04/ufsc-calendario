@@ -1,11 +1,13 @@
 import { cn } from 'cn'
+import { TriangleAlert } from 'lucide-react'
 import { motion } from 'motion/react'
 import { AnimatedNumber } from '@/components/animated-number'
 import { AttendanceBar } from '@/components/attendance-bar'
+import { AttendanceWarning, RetryButton } from '@/components/attendance-warning'
 import { EASE_OUT, TONE_BG, TONE_TEXT } from '@/components/tone'
 import { formatDayCount, formatRelativeDay, formatTime, plural } from '@/lib/format'
 import { absenceDays, type DisciplineView, nextMeetings, type Tone } from '@/lib/model'
-import { useClock } from '@/lib/store'
+import { useApp, useClock } from '@/lib/store'
 import { useUi } from '@/lib/ui'
 
 const LEGEND: Array<{ tone: Tone; label: string }> = [
@@ -15,6 +17,8 @@ const LEGEND: Array<{ tone: Tone; label: string }> = [
 ]
 
 export function OverviewView({ views }: { views: DisciplineView[] }) {
+  const syncing = useApp((state) => state.syncing)
+  const notUpdated = views.filter((view) => view.attendanceFailed).length
   const tracked = views.filter((view) => view.stats.hasData)
   const counts = { good: 0, warn: 0, bad: 0, neutral: 0 }
   for (const view of tracked) counts[view.stats.failed ? 'bad' : view.stats.tone]++
@@ -71,6 +75,18 @@ export function OverviewView({ views }: { views: DisciplineView[] }) {
             </li>
           ))}
         </ul>
+        {notUpdated > 0 && (
+          <div role="status" className="mt-3 flex items-start gap-2.5 border-t pt-3 text-xs">
+            <TriangleAlert className="mt-px size-4 shrink-0 text-warn" />
+            <p className="min-w-0 flex-1 leading-relaxed text-muted-foreground">
+              <span className="font-semibold text-warn">
+                {plural(notUpdated, 'disciplina não foi atualizada', 'disciplinas não foram atualizadas')}
+              </span>
+              : o Moodle não abriu a página de presença, nem depois de entrar de novo.
+            </p>
+            <RetryButton syncing={syncing} />
+          </div>
+        )}
       </motion.section>
 
       {views.map((view, index) => (
@@ -103,6 +119,7 @@ function OverviewRow({ view, index }: { view: DisciplineView; index: number }) {
         <AnimatedNumber value={stats.percent} className={cn('tabular shrink-0 text-lg font-semibold', TONE_TEXT[stats.tone])} />
       </div>
       <AttendanceBar percent={stats.percent} tone={stats.tone} className="mt-2.5" delay={delay} />
+      <AttendanceWarning view={view} retry={false} className="mt-2.5" />
       <div className="mt-2 text-xs text-muted-foreground">
         {stats.hasData ? (
           <p className={cn('tabular', stats.failed && 'font-medium text-bad')}>
@@ -111,7 +128,7 @@ function OverviewRow({ view, index }: { view: DisciplineView; index: number }) {
             {plural(days.allowed, 'dia', 'dias')}
           </p>
         ) : (
-          <p>Sem chamadas</p>
+          !view.attendanceFailed && <p>Sem chamadas</p>
         )}
         {next && (
           <p className="mt-0.5 truncate">

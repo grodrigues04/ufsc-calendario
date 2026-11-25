@@ -106,6 +106,9 @@ export function SimulatorView({ views }: { views: DisciplineView[] }) {
                 <span className={cn('tabular text-xs', active ? 'opacity-70' : TONE_TEXT[view.stats.tone])}>
                   {formatPercent(view.stats.percent)}
                 </span>
+                {view.attendanceFailed && (
+                  <TriangleAlert className={cn('size-3.5', !active && 'text-warn')} aria-label="presença não atualizada agora" />
+                )}
               </motion.button>
             )
           })}

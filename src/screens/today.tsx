@@ -6,6 +6,7 @@ import { Link } from 'wouter'
 import type { Activity } from '@shared/types'
 import { AnimatedNumber } from '@/components/animated-number'
 import { AttendanceBar } from '@/components/attendance-bar'
+import { AttendanceWarning } from '@/components/attendance-warning'
 import { Screen, SectionTitle } from '@/components/screen'
 import { EASE_OUT, TONE_TEXT } from '@/components/tone'
 import {
@@ -185,6 +186,7 @@ function ClassCard({ item, index }: { item: ClassItem; index: number }) {
       </button>
 
       <div className="px-4 pb-4">
+        <AttendanceWarning view={view} className="mt-3" />
         {stats.hasData ? (
           <>
             <AttendanceBar percent={stats.percent} tone={stats.tone} className="mt-3" delay={0.05 + Math.min(index, 6) * 0.05} />
@@ -212,7 +214,7 @@ function ClassCard({ item, index }: { item: ClassItem; index: number }) {
             )}
           </>
         ) : (
-          <p className="mt-3 text-sm text-muted-foreground">Sem lista de presença no Moodle.</p>
+          !view.attendanceFailed && <p className="mt-3 text-sm text-muted-foreground">Sem lista de presença no Moodle.</p>
         )}
 
         {(upcomingDeadlines.length > 0 || overdue > 0) && (

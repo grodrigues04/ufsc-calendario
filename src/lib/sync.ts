@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import { ApiFailure, sync } from './api'
+import { plural } from './format'
 import { processNews } from './inbox'
 import { buildDisciplines } from './model'
 import { useApp, useClock } from './store'
@@ -32,11 +33,16 @@ export function syncNow({ silent = false }: { silent?: boolean } = {}): Promise<
       })
       useApp.getState().applySync(result)
       void processNews(result)
-      if (result.attendanceIssue === 'lockout' && !silent) {
-        toast('Presenças já atualizadas há pouco', { description: 'O Moodle libera uma nova leitura a cada 6 minutos.' })
-      } else if (result.attendanceIssue === 'session_failed' && !silent) {
-        toast.error('Não consegui ler as presenças agora', { description: 'Atividades atualizadas. Tente de novo em instantes.' })
-      } else if (!silent) {
+      const notRead = result.attendanceFailed?.length ?? 0
+      if (silent) {
+        // Automatic syncs stay quiet: the disciplines that were not read are marked on screen.
+      } else if (result.attendanceIssue === 'lockout') {
+        toast('O Moodle não deixou entrar de novo agora', { description: 'Ele libera um novo login a cada 6 minutos. As disciplinas não atualizadas ficam marcadas.' })
+      } else if (notRead > 0) {
+        toast.error(`Não consegui ler a presença de ${plural(notRead, 'disciplina', 'disciplinas')}`, {
+          description: 'Entrei de novo no Moodle e tentei outra vez. Elas ficam marcadas até a próxima leitura.',
+        })
+      } else {
         toast.success('Tudo atualizado')
       }
     } catch (error) {

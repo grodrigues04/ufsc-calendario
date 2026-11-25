@@ -1,6 +1,7 @@
 import { cn } from 'cn'
 import { motion } from 'motion/react'
 import { AnimatedNumber } from '@/components/animated-number'
+import { AttendanceWarningChip } from '@/components/attendance-warning'
 import { Ring } from '@/components/ring'
 import { EASE_OUT, TONE_TEXT } from '@/components/tone'
 import { formatDayCount, plural } from '@/lib/format'
@@ -31,13 +32,14 @@ export function DisciplinesView({ views }: { views: DisciplineView[] }) {
             </Ring>
             <span className="mt-3 line-clamp-2 min-h-[2.5em] text-[13px] leading-tight font-semibold">{view.shortName}</span>
             <span className={cn('tabular mt-1 text-xs text-muted-foreground', stats.failed && 'font-medium text-bad')}>
-              {stats.hasData ? `${stats.absences} de ${stats.allowedAbsences} aulas de falta` : 'sem chamadas'}
+              {stats.hasData ? `${stats.absences} de ${stats.allowedAbsences} aulas de falta` : view.attendanceFailed ? 'sem leitura' : 'sem chamadas'}
             </span>
             {stats.hasData && (
               <span className={cn('tabular text-xs text-muted-foreground', stats.failed && 'font-medium text-bad')}>
                 {formatDayCount(days.absent)} de {plural(days.allowed, 'dia', 'dias')}
               </span>
             )}
+            <AttendanceWarningChip view={view} className="mt-1.5" />
           </motion.button>
         )
       })}

@@ -10,6 +10,7 @@ import { useClock } from '@/lib/store'
 import { useDisciplines } from '@/lib/sync'
 import { useBackToClose, useUi } from '@/lib/ui'
 import { AnimatedNumber } from './animated-number'
+import { AttendanceWarning } from './attendance-warning'
 import { Ring } from './ring'
 import { TONE_SOFT, TONE_TEXT } from './tone'
 
@@ -58,6 +59,7 @@ function DisciplineDetail({ view }: { view: DisciplineView }) {
         {[view.code, view.classGroup && `turma ${view.classGroup}`].filter(Boolean).join(' · ')}
         {view.professors.length > 0 && <span className="block truncate">{view.professors.join(', ')}</span>}
       </DrawerDescription>
+      <AttendanceWarning view={view} className="mt-4" />
 
       {stats.hasData ? (
         <>
@@ -101,9 +103,11 @@ function DisciplineDetail({ view }: { view: DisciplineView }) {
           </dl>
         </>
       ) : (
-        <p className="mt-5 rounded-2xl bg-secondary/70 px-4 py-3 text-sm text-muted-foreground">
-          Esta disciplina ainda não tem lista de presença no Moodle.
-        </p>
+        !view.attendanceFailed && (
+          <p className="mt-5 rounded-2xl bg-secondary/70 px-4 py-3 text-sm text-muted-foreground">
+            Esta disciplina ainda não tem lista de presença no Moodle.
+          </p>
+        )
       )}
 
       {view.schedule.length > 0 && (

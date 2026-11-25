@@ -77,6 +77,10 @@ export interface DisciplineView {
   stats: AttendanceStats
   activities: Activity[]
   attendanceUrl: string | null
+  /** Moodle did not let the app read this discipline's attendance in the last sync. */
+  attendanceFailed: boolean
+  /** When the attendance shown was read from Moodle. */
+  attendanceReadAt: Date | null
 }
 
 // Categorical hues away from the status colors (red/orange/green).
@@ -222,6 +226,8 @@ export function buildDisciplines(disciplines: Discipline[], sync: SyncResult | n
         attendanceUrl: attendance?.cmids[0]
           ? `https://presencial.moodle.ufsc.br/mod/attendance/view.php?id=${attendance.cmids[0]}&view=5`
           : null,
+        attendanceFailed: source.course !== null && (sync?.attendanceFailed ?? []).includes(source.course.id),
+        attendanceReadAt: attendance?.readAt ? new Date(attendance.readAt) : null,
       }
     })
 }
