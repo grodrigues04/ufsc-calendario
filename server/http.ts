@@ -82,17 +82,14 @@ export class CookieJar {
     return cookie ? `${cookie.name}=${cookie.value}` : null
   }
 
-  /** Adds a "name=value" cookie for a host. */
+  /** Adds a "name=value" cookie for a host, replacing any cookie of the same name there. */
   add(domain: string, cookie: string): void {
     const separator = cookie.indexOf('=')
     if (separator <= 0) return
-    this.cookies.push({
-      name: cookie.slice(0, separator),
-      value: cookie.slice(separator + 1),
-      domain,
-      hostOnly: true,
-      path: '/',
-    })
+    const name = cookie.slice(0, separator)
+    // Servers read the first cookie of a name: an old copy left in the jar would win.
+    this.cookies = this.cookies.filter((existing) => !(existing.name === name && existing.domain === domain))
+    this.cookies.push({ name, value: cookie.slice(separator + 1), domain, hostOnly: true, path: '/' })
   }
 }
 

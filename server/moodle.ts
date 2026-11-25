@@ -213,6 +213,8 @@ export async function syncMoodle(
     return statusCache.get(assignId)!
   }
 
+  // Courses whose contents did not load: their attendance activities are unknown in this sync.
+  const contentsFailed = new Set<number>()
   const [contents, calendar, actions, assignments] = await Promise.all([
     Promise.all(
       current.map((course) =>
@@ -221,6 +223,7 @@ export async function syncMoodle(
           options: [{ name: 'excludecontents', value: 1 }],
         }).catch((error: unknown) => {
           if (error instanceof AppError) throw error
+          contentsFailed.add(course.id)
           return []
         }),
       ),
@@ -265,7 +268,9 @@ export async function syncMoodle(
   let { attendance, session, issue } = attendanceRead
   if (earlyAttendance) {
     // Keep only current courses and read attendance activities the hint did not know about.
-    attendance = Object.fromEntries(Object.entries(attendance).filter(([courseId]) => attendanceCmids.has(Number(courseId))))
+    attendance = Object.fromEntries(
+      Object.entries(attendance).filter(([courseId]) => attendanceCmids.has(Number(courseId)) || contentsFailed.has(Number(courseId))),
+    )
     const missing = new Map(
       [...attendanceCmids]
         .map(([courseId, cmids]) => [courseId, cmids.filter((cmid) => !knownTargets.get(courseId)?.includes(cmid))] as const)
@@ -283,6 +288,8 @@ export async function syncMoodle(
       issue = extra.issue
     }
   }
+  // Attendance not read because the course contents failed: the app keeps what it had.
+  if (!issue && [...contentsFailed].some((courseId) => !attendance[courseId])) issue = 'session_failed'
 
   return {
     syncedAt: new Date().toISOString(),
@@ -583,8 +590,12 @@ async function readAttendance(
   if (session) {
     client.jar.add(MOODLE_HOST, session)
     const response = await client.request(pageUrl(targets[0].cmid))
-    if (response.status === 200) firstPage = await response.text()
-    else await response.body?.cancel()
+    if (response.status === 200) {
+      const html = await response.text()
+      if (isAttendancePage(html)) firstPage = html
+    } else {
+      await response.body?.cancel()
+    }
   }
 
   if (firstPage === null) {
@@ -601,7 +612,7 @@ async function readAttendance(
       const step = await freshClient.follow(url)
       const html = await step.response.text()
       session = freshClient.jar.find(MOODLE_HOST, (name) => name.startsWith('MoodleSession'))
-      if (!step.url.startsWith(`${MOODLE_URL}/mod/attendance/`) || !session) {
+      if (!step.url.startsWith(`${MOODLE_URL}/mod/attendance/`) || !session || !isAttendancePage(html)) {
         return { attendance, session: null, issue: 'session_failed' }
       }
       client.jar.add(MOODLE_HOST, session)
@@ -616,24 +627,42 @@ async function readAttendance(
   const pages = await Promise.all(
     targets.map(async ({ cmid }, index) => {
       if (index === 0) return firstPage
-      const response = await client.request(pageUrl(cmid))
-      if (response.status !== 200) {
-        await response.body?.cancel()
-        return ''
+      try {
+        const response = await client.request(pageUrl(cmid))
+        if (response.status !== 200) {
+          await response.body?.cancel()
+          return null
+        }
+        const html = await response.text()
+        return isAttendancePage(html) ? html : null
+      } catch {
+        return null
       }
-      return response.text()
     }),
   )
+  // A page that did not load says nothing about its course. Leaving the course out keeps the
+  // attendance the app already had; an empty list would read as "no attendance in Moodle".
+  const failed = new Set(targets.filter((_, index) => pages[index] === null).map(({ courseId }) => courseId))
 
   targets.forEach(({ courseId, cmid }, index) => {
-    const sessions = parseAttendancePage(pages[index] ?? '')
+    const page = pages[index]
+    if (page === null || failed.has(courseId)) return
     const entry = attendance[courseId] ?? { cmids: [], sessions: [] }
     entry.cmids.push(cmid)
-    entry.sessions.push(...sessions)
+    entry.sessions.push(...parseAttendancePage(page))
     entry.sessions.sort((a, b) => a.start.localeCompare(b.start))
     attendance[courseId] = entry
   })
-  return { attendance, session: client.jar.find(MOODLE_HOST, (name) => name.startsWith('MoodleSession')) ?? session, issue: null }
+  return {
+    attendance,
+    session: client.jar.find(MOODLE_HOST, (name) => name.startsWith('MoodleSession')) ?? session,
+    issue: failed.size ? 'session_failed' : null,
+  }
+}
+
+/** Moodle answers with another page when it cannot show this one (expired session, error, notice). */
+function isAttendancePage(html: string): boolean {
+  return html.includes('id="page-mod-attendance-view"')
 }
 
 export function parseAttendancePage(html: string): AttendanceSession[] {
