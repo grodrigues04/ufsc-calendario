@@ -1,6 +1,7 @@
 // POST /api/notes  { token, notes? }  ->  { notes }
 // Reads (and, with `notes`, merges and saves) the student's manual absences. The Moodle token
 // proves who the student is; only an HMAC of the Moodle user id and encrypted notes are stored.
+// Notes of semesters that already ended are deleted on the way (server/notes.ts).
 // The app calls this every time it opens, so it also counts the visit (anonymous usage).
 
 import { clampToNow, sanitizeNotes, type NotesResponse } from '../shared/notes.js'
@@ -25,8 +26,9 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const rowKey = accountKey(await getMoodleUserId(token))
+    const now = new Date()
     const [notes] = await Promise.all([
-      incoming ? saveNotes(rowKey, clampToNow(incoming, new Date())) : readNotes(rowKey),
+      incoming ? saveNotes(rowKey, clampToNow(incoming, now), now) : readNotes(rowKey, now),
       // Usage only feeds the local panel: it never gets in the way of the notes.
       recordVisit(rowKey).catch((error: unknown) => console.error('usage failed:', error instanceof Error ? error.message : error)),
     ])

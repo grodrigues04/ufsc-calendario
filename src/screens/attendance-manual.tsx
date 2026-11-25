@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, CloudCheck, CloudOff, LoaderCircle, Plus, Tr
 import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useState } from 'react'
 import { type AbsenceRecord, activeRecords } from '@shared/notes'
+import { nextSemester, semesterLabel, semesterStartText } from '@shared/semester'
 import { AnimatedNumber } from '@/components/animated-number'
 import { AttendanceBar } from '@/components/attendance-bar'
 import { EASE_OUT, SPRING_UI, TONE_TEXT } from '@/components/tone'
@@ -58,6 +59,10 @@ export function ManualView({ views }: { views: DisciplineView[] }) {
         <p className="text-sm leading-relaxed text-muted-foreground">
           Registre cada dia de aula que você faltou. Aqui só contam essas faltas: para passar, a presença precisa ficar em pelo
           menos <span className="font-semibold text-foreground">75%</span> das aulas do semestre.
+        </p>
+        <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+          Elas valem só para {semesterLabel(semester)}: em {semesterStartText(nextSemester(semester))}, quando começa o próximo
+          semestre, são apagadas.
         </p>
         <button
           type="button"

@@ -1,10 +1,13 @@
 -- Neon Postgres (project ufsc-calendario, São Paulo). Nothing here names a student: accounts are
 -- an HMAC of the Moodle user id (user_key), and every payload is AES-256-GCM (server/crypto.ts).
 
--- Manual absences ("Manual" tab), one row per account, synced across devices.
+-- Manual absences ("Manual" tab), one row per account, synced across devices. They only last for
+-- their semester: `semester` is the newest one in the payload, and the row is deleted when the next
+-- semester starts (api/jobs/delete-past-semesters.ts; the calendar is in shared/semester.ts).
 create table if not exists manual_notes (
   user_key text primary key,
   payload text not null,
+  semester text not null,
   version integer not null default 1,
   updated_at timestamptz not null default now()
 );

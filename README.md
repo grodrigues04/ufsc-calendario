@@ -3,7 +3,8 @@
 App (PWA, mobile first) para acompanhar as disciplinas da UFSC: aulas do dia, presença em cada
 disciplina, simulador de faltas e prazos das atividades do Moodle. O estudante entra com o próprio
 idUFSC. Os dados do Moodle e do CAGR ficam só no aparelho; o banco (Neon) guarda apenas as faltas
-anotadas na aba Manual (criptografadas), um registro anônimo de uso e os relatos de bug.
+anotadas na aba Manual (criptografadas, e só até começar o semestre seguinte), um registro anônimo
+de uso e os relatos de bug.
 
 ## Telas
 
@@ -29,7 +30,8 @@ anotadas na aba Manual (criptografadas), um registro anônimo de uso e os relato
     salvo, sem internet, erro ao salvar ou ao carregar, com toque para tentar de novo), o app
     recarrega as faltas da conta ao voltar para a tela, faltas de uma disciplina que não está na
     lista atual aparecem num cartão à parte (nunca somem), e "Sair" avisa antes de apagar faltas que
-    ainda não chegaram à conta.
+    ainda não chegaram à conta. As faltas valem só para o semestre: quando começa o seguinte, elas
+    são apagadas da conta e do aparelho (veja *Fim do semestre*, abaixo).
 - **Atividades**: o que ainda precisa ser feito, com prazo e disciplina, agrupado por data
   (atrasadas, hoje, amanhã, próximos 7 dias, mais adiante). Não aparecem atividades entregues
   (pelo estudante ou pelo grupo), já avaliadas (provas em sala), encerradas para envio ou escolhas
@@ -98,6 +100,16 @@ app (PWA) ──POST /api/login──▶ função Vercel (gru1) ──▶ idUFSC
   o id, nome ou matrícula) e as anotações cifradas com AES-256-GCM; as duas chaves derivam de
   `NOTES_SECRET`, que só existe no ambiente da Vercel. Entre aparelhos, cada falta é sincronizada
   separadamente (vale a versão mais recente, e uma falta apagada continua apagada).
+- **Fim do semestre** (`shared/semester.ts`, `api/jobs/delete-past-semesters.ts`): as faltas anotadas
+  valem só para o semestre delas. Pela regra do calendário da UFSC (o 1º semestre começa em março e
+  o 2º em agosto; 2027.1 começa em 01/03/2027), as de 2026.2 são apagadas em 1º de março e as de
+  2027.1 em 1º de agosto. Ler ou gravar as faltas já descarta os semestres encerrados (o app recebe
+  a lista limpa e apaga a cópia do aparelho), e uma tarefa agendada da Vercel (Schedules, função
+  privada, sem URL pública) apaga às 4h, de 1 a 7 de março e de agosto, as contas que não abriram o
+  app; os outros dias só repetem uma execução que tenha falhado. Para isso a tabela guarda, aberta,
+  a coluna `semester` (o semestre mais recente da linha, igual para todo mundo); as faltas continuam
+  cifradas. O app nunca grava falta num semestre encerrado: se ainda estiver com o login do semestre
+  anterior (a grade do CAGR só é lida no login), as faltas novas já vão para o semestre atual.
 - **Uso** (`server/usage.ts`): como o app carrega as faltas anotadas sempre que abre, o
   `/api/notes` também registra a visita: por conta (a mesma HMAC), o primeiro e o último acesso e
   em quantos dias usou (grava no máximo a cada 5 minutos, mais uma vez por dia novo); e, por dia,
@@ -133,10 +145,11 @@ npm run painel       # painel local de uso e relatos de bug: http://127.0.0.1:45
 
 O **painel** (`panel/`) roda só neste computador: lê o Neon com o `.env.local`, decifra os relatos
 de bug com a `NOTES_SECRET` e mostra quantas contas usam o app, os acessos por dia (30 dias), o
-último acesso de cada conta (identificada só pelo começo da HMAC) e os relatos. "Resolver e
-apagar" apaga o relato do banco, sem volta. Ele escuta só em `127.0.0.1`, recusa outros endereços
-(DNS rebinding) e só aceita ações vindas da própria página. Não vai para a Vercel (só `api/` vira
-função).
+último acesso de cada conta (identificada só pelo começo da HMAC), de que semestre são as faltas
+anotadas (e quando serão apagadas, com um aviso se a limpeza agendada não rodou) e os relatos.
+"Resolver e apagar" apaga o relato do banco, sem volta. Ele escuta só em `127.0.0.1`, recusa
+outros endereços (DNS rebinding) e só aceita ações vindas da própria página. Não vai para a Vercel
+(só `api/` vira função).
 
 Ícones do PWA: `npx pwa-assets-generator` (a partir de `public/logo.svg`).
 

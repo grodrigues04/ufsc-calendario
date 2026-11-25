@@ -3,7 +3,15 @@
   "framework": "vite",
   "regions": ["gru1"],
   "functions": {
-    "api/*.ts": { "maxDuration": 60 }
+    "api/*.ts": { "maxDuration": 60 },
+    "api/jobs/delete-past-semesters.ts": { "experimentalTriggers": [{ "type": "schedule/v1beta" }] }
+  },
+  "schedules": {
+    "delete-past-semesters": {
+      "schedule": "0 4 1-7 3,8 *",
+      "timezone": "America/Sao_Paulo",
+      "function": "api/jobs/delete-past-semesters"
+    }
   },
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
   "headers": [

@@ -2,6 +2,7 @@
 // Every value that came from the database or from a student goes through escape().
 
 import type { BugReport } from '../shared/report.ts'
+import { nextSemester, semesterLabel, semesterOf, semesterStartText } from '../shared/semester.ts'
 
 export interface Account {
   /** Account key (HMAC of the Moodle id); only its first characters are shown. */
@@ -10,6 +11,8 @@ export interface Account {
   lastSeen: Date | null
   activeDays: number | null
   notesUpdated: Date | null
+  /** Newest semester of the account's manual absences ("20262"). */
+  notesSemester: string | null
 }
 
 export interface Report {
@@ -168,13 +171,23 @@ function accountsTable(data: PanelData): string {
         <td>${moment(account.lastSeen, data.now, 'antes da contagem')}</td>
         <td>${moment(account.firstSeen, data.now, '—')}</td>
         <td class="num">${account.activeDays === null ? '<span class="muted">—</span>' : numberFormat.format(account.activeDays)}</td>
-        <td>${account.notesUpdated ? `sim <span class="muted">· alteradas ${moment(account.notesUpdated, data.now, '')}</span>` : '<span class="muted">não</span>'}</td>
+        <td>${notesCell(account, data.now)}</td>
       </tr>`,
     )
     .join('')
+  const current = semesterOf(data.now)
+  const next = nextSemester(current)
+  // The scheduled job deletes these at the start of a semester: any left means it did not run.
+  const ended = data.accounts.filter((account) => account.notesSemester !== null && account.notesSemester < current).length
   return `<section class="card">
     <h2>Contas</h2>
     <p class="muted">Cada linha é uma conta do Moodle, identificada só pelo começo de um código (HMAC do id). Nenhum nome ou matrícula é guardado.</p>
+    <p class="muted">As faltas anotadas duram só o semestre: as de ${semesterLabel(current)} são apagadas em ${semesterStartText(next)}, quando começa ${semesterLabel(next)}.</p>
+    ${
+      ended
+        ? `<p class="warn">${plural(ended, 'conta ainda tem', 'contas ainda têm')} faltas de semestres que já acabaram. A limpeza automática roda às 4h, de 1 a 7 de março e de agosto, e elas também somem quando a pessoa abre o app.</p>`
+        : ''
+    }
     ${
       shown.length
         ? `<div class="table-scroll"><table>
@@ -185,6 +198,12 @@ function accountsTable(data: PanelData): string {
         : '<p class="empty">Nenhuma conta ainda.</p>'
     }
   </section>`
+}
+
+function notesCell(account: Account, now: Date): string {
+  if (!account.notesUpdated) return '<span class="muted">não</span>'
+  const semester = account.notesSemester ? semesterLabel(account.notesSemester) : 'sim'
+  return `${escape(semester)} <span class="muted">· alteradas ${moment(account.notesUpdated, now, '')}</span>`
 }
 
 const DEVICES: Record<string, string> = { ios: 'iPhone', android: 'Android', outro: 'Outro aparelho' }
@@ -293,6 +312,8 @@ const STYLE = `
   --series-1: #257de0;
   --series-1-track: #dbe9fa;
   --accent-text: #1c64b8;
+  --warn-surface: #fdf1dc;
+  --warn-text: #7a4300;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -307,6 +328,8 @@ const STYLE = `
     --series-1: #338ced;
     --series-1-track: #1d3554;
     --accent-text: #79b3f5;
+    --warn-surface: #33250f;
+    --warn-text: #f2c27c;
   }
 }
 * { box-sizing: border-box; }
@@ -369,5 +392,6 @@ code { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: va
 .chip { font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; color: var(--text-secondary); }
 .report button { font: inherit; font-size: 13px; font-weight: 600; color: var(--text-primary); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 5px 14px; cursor: pointer; }
 .report button:hover { border-color: var(--text-secondary); }
+.warn { margin-top: 12px; padding: 10px 14px; border-radius: 12px; background: var(--warn-surface); color: var(--warn-text); font-size: 13px; }
 .foot { margin-top: 20px; font-size: 12px; text-align: center; }
 `

@@ -33,7 +33,8 @@ const toDate = (value: unknown): Date | null => (value === null || value === und
 
 async function loadData(): Promise<PanelData> {
   const [accounts, daily, reports, size] = await Promise.all([
-    sql`select coalesce(u.user_key, n.user_key) as key, u.first_seen_at, u.last_seen_at, u.active_days, n.updated_at as notes_updated_at
+    sql`select coalesce(u.user_key, n.user_key) as key, u.first_seen_at, u.last_seen_at, u.active_days,
+          n.updated_at as notes_updated_at, n.semester as notes_semester
         from app_usage u full join manual_notes n on n.user_key = u.user_key`,
     sql`select to_char(day, 'YYYY-MM-DD') as day, users from daily_usage
         where day > (now() at time zone 'America/Sao_Paulo')::date - 40`,
@@ -48,6 +49,7 @@ async function loadData(): Promise<PanelData> {
         lastSeen: toDate(row.last_seen_at),
         activeDays: row.active_days === null ? null : Number(row.active_days),
         notesUpdated: toDate(row.notes_updated_at),
+        notesSemester: row.notes_semester === null || row.notes_semester === undefined ? null : String(row.notes_semester),
       }),
     ),
     daily: new Map(daily.map((row) => [String(row.day), Number(row.users)])),

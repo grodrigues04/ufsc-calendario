@@ -10,7 +10,7 @@ import { kvDelete, kvGet, kvSet } from './kv'
 import { buildDisciplines } from './model'
 import { detectNews, MAX_INBOX, type NewsItem, type NewsSnapshot, newsText, type SeenState } from './news'
 import { useNotes } from './notes'
-import { useApp, useSemester } from './store'
+import { notesSemester, useApp, useSemester } from './store'
 import { useUi } from './ui'
 
 interface InboxState {
@@ -59,24 +59,23 @@ export async function loadInbox(): Promise<void> {
 function buildSnapshot(): NewsSnapshot | null {
   const { auth, student, disciplines, sync } = useApp.getState()
   if (!auth || !sync) return null
-  const semester = student?.semester || sync.semester || null
-  const views = buildDisciplines(disciplines, sync, new Date())
+  const now = new Date()
+  const views = buildDisciplines(disciplines, sync, now)
   const notes = useNotes.getState().notes
+  const recordsSemester = notesSemester({ student, sync }, now)
   const map: NewsSnapshot['disciplines'] = {}
   for (const view of views) if (view.course) map[view.course.id] = { id: view.id, name: view.name }
   return {
     userId: auth.userId,
     auth,
-    semester,
+    semester: student?.semester || sync.semester || null,
     attendanceCmids: Object.fromEntries(Object.entries(sync.attendance).map(([courseId, attendance]) => [courseId, attendance.cmids])),
     disciplines: map,
-    manualDays: semester
-      ? views.flatMap((view) =>
-          activeRecords(notes, semester, view.id)
-            .filter((record) => record.date)
-            .map((record) => `${view.id}|${record.date}`),
-        )
-      : [],
+    manualDays: views.flatMap((view) =>
+      activeRecords(notes, recordsSemester, view.id)
+        .filter((record) => record.date)
+        .map((record) => `${view.id}|${record.date}`),
+    ),
   }
 }
 

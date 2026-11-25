@@ -149,6 +149,19 @@ export function clampToNow(notes: ManualNotes, now: Date): ManualNotes {
   return clamped
 }
 
+/**
+ * Manual absences only count in their own semester: once the next one starts they are deleted.
+ * Keeps `semester` and the ones after it.
+ */
+export function dropSemestersBefore(notes: ManualNotes, semester: string): ManualNotes {
+  return Object.fromEntries(Object.entries(notes).filter(([key]) => key >= semester))
+}
+
+/** The latest semester with notes, or null when there are none. */
+export function newestSemester(notes: ManualNotes): string | null {
+  return Object.keys(notes).sort().at(-1) ?? null
+}
+
 /** Absences still in effect for a discipline, newest class day first (undated ones last). */
 export function activeRecords(notes: ManualNotes, semester: string, discipline: string): Array<AbsenceRecord & { id: string }> {
   return Object.entries(notes[semester]?.[discipline] ?? {})

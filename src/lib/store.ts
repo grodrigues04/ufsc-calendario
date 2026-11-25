@@ -1,3 +1,4 @@
+import { semesterOf } from '@shared/semester'
 import type { CourseAttendance, Discipline, LoginNotice, LoginResult, MoodleAuth, Student, SyncResult } from '@shared/types'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
@@ -65,18 +66,19 @@ function withReadings(result: SyncResult, previous: SyncResult | null): SyncResu
   return { ...result, attendance, attendanceFailed: failed }
 }
 
-/** UFSC semester of a date ("20262"): March to July is the first, August to December the second. */
-export function semesterOf(date: Date): string {
-  const year = date.getFullYear()
-  const month = date.getMonth()
-  if (month >= 7) return `${year}2`
-  if (month >= 2) return `${year}1`
-  return `${year - 1}2`
+/**
+ * Semester the manual absences belong to: CAGR's, else Moodle's, but never one the calendar says
+ * already ended. The server deletes those, and an app still logged in from last semester (the
+ * CAGR grade is only read at login) would otherwise save new absences that disappear right away.
+ */
+export function notesSemester(state: Pick<AppState, 'student' | 'sync'>, now = new Date()): string {
+  const calendar = semesterOf(now)
+  const known = state.student?.semester || state.sync?.semester
+  return known && known > calendar ? known : calendar
 }
 
-/** The current semester: from CAGR, else Moodle, else the calendar (manual absences are never left without one). */
 export function useSemester(): string {
-  return useApp((state) => state.student?.semester || state.sync?.semester || semesterOf(new Date()))
+  return useApp((state) => notesSemester(state))
 }
 
 /** A clock shared by the screens, ticking every 30 seconds. */

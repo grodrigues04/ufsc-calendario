@@ -60,7 +60,7 @@ export function HowItWorksSheet({ trigger }: { trigger: ReactNode }) {
             <ul className="list-disc space-y-1.5 pl-4 marker:text-muted-foreground/60">
               <li>
                 As <b>faltas que você anota</b> na aba Manual, para não perdê-las se trocar de celular. Elas ficam criptografadas:
-                no banco, viram um código embaralhado.
+                no banco, viram um código embaralhado. E duram só o semestre: quando começa o seguinte, são apagadas.
               </li>
               <li>
                 <b>Quando você usou o app</b> (o primeiro e o último dia), para sabermos quantas pessoas usam.
