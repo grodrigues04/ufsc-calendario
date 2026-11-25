@@ -10,6 +10,8 @@ export const KEY_PURPOSES = {
   account: 'chamada:user-key',
   notes: 'chamada:notes-encryption',
   bugReports: 'chamada:bug-reports',
+  /** HMAC of the client IP for the per-IP limits (the IP itself is never kept). */
+  rateLimit: 'chamada:rate-limit',
 } as const
 
 export type KeyPurpose = (typeof KEY_PURPOSES)[keyof typeof KEY_PURPOSES]

@@ -6,9 +6,12 @@ import { fetchCagrGrade } from '../server/cagr.js'
 import { AppError } from '../server/http.js'
 import { loginMoodle, syncMoodle } from '../server/moodle.js'
 import { forbidden, isCrossSite } from '../server/origin.js'
+import { limitRequest } from '../server/rate-limit.js'
 
 export async function POST(request: Request): Promise<Response> {
   if (isCrossSite(request)) return forbidden()
+  const limited = await limitRequest(request, 'login')
+  if (limited) return limited
   const body = (await request.json().catch(() => null)) as { username?: unknown; password?: unknown } | null
   const username = typeof body?.username === 'string' ? body.username.trim() : ''
   const password = typeof body?.password === 'string' ? body.password : ''

@@ -7,10 +7,13 @@ import { readBugReport, type ReportRequest } from '../shared/report.js'
 import { AppError } from '../server/http.js'
 import { getMoodleUserId } from '../server/moodle.js'
 import { forbidden, isCrossSite } from '../server/origin.js'
+import { limitRequest } from '../server/rate-limit.js'
 import { saveBugReport } from '../server/reports.js'
 
 export async function POST(request: Request): Promise<Response> {
   if (isCrossSite(request)) return forbidden()
+  const limited = await limitRequest(request, 'report')
+  if (limited) return limited
   const body = (await request.json().catch(() => null)) as Partial<Record<keyof ReportRequest, unknown>> | null
   const token = typeof body?.token === 'string' && /^[a-f0-9]{32}$/.test(body.token) ? body.token : null
   const report = readBugReport(body?.report)

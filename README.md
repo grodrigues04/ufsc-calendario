@@ -106,6 +106,12 @@ app (PWA) ──POST /api/login──▶ função Vercel (gru1) ──▶ idUFSC
   app (scripts não enchem a tabela) e não é guardado. O relato é cifrado como as faltas, preso ao
   próprio id, sem nenhum identificador da conta; no máximo 100 por dia.
 - **Tabelas**: `server/schema.sql`.
+- **Limite por IP** (`server/rate-limit.ts`): login e relatos de bug aceitam até 5 pedidos por
+  minuto por IP; atualizar e faltas anotadas, 60 (o app chama essas sozinho, e uma sala inteira no
+  Wi-Fi da UFSC sai pelo mesmo IP). Passou do limite, aquele IP fica 15 minutos sem acesso à rota
+  (429 com `Retry-After`); as outras rotas continuam liberadas. A contagem fica na memória da
+  função e no Runtime Cache da Vercel, nunca no banco (um IP travado não acorda o Neon), e guarda
+  só uma HMAC do IP. O bloqueio temporário do firewall da Vercel só existe nos planos pagos.
 - **Privacidade**: a senha só passa pela função no login e não é salva nem registrada em log. O
   app guarda no aparelho (localStorage) o token do Moodle, a sessão web e os dados exibidos.
   Sair apaga tudo do aparelho (as faltas anotadas continuam salvas na conta). No banco não há

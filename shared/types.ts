@@ -127,6 +127,7 @@ export type ErrorCode =
   | 'ufsc_unavailable'
   | 'moodle_token_failed'
   | 'invalid_token'
+  | 'rate_limited'
   | 'unknown'
 
 export type LoginEvent =

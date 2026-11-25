@@ -8,11 +8,14 @@ import { AppError } from '../server/http.js'
 import { getMoodleUserId } from '../server/moodle.js'
 import { readNotes, saveNotes } from '../server/notes.js'
 import { forbidden, isCrossSite } from '../server/origin.js'
+import { limitRequest } from '../server/rate-limit.js'
 import { accountKey } from '../server/storage.js'
 import { recordVisit } from '../server/usage.js'
 
 export async function POST(request: Request): Promise<Response> {
   if (isCrossSite(request)) return forbidden()
+  const limited = await limitRequest(request, 'notes')
+  if (limited) return limited
   const body = (await request.json().catch(() => null)) as { token?: unknown; notes?: unknown } | null
   const token = typeof body?.token === 'string' && /^[a-f0-9]{32}$/.test(body.token) ? body.token : null
   const incoming = body?.notes === undefined ? null : sanitizeNotes(body.notes)
