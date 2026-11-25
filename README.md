@@ -2,7 +2,8 @@
 
 App (PWA, mobile first) para acompanhar as disciplinas da UFSC: aulas do dia, presença em cada
 disciplina, simulador de faltas e prazos das atividades do Moodle. O estudante entra com o próprio
-idUFSC e o app só monta a interface: não há banco de dados, os dados ficam no aparelho.
+idUFSC. Os dados do Moodle e do CAGR ficam só no aparelho; o banco (Neon) guarda apenas as faltas
+anotadas na aba Manual (criptografadas), um registro anônimo de uso e os relatos de bug.
 
 ## Telas
 
@@ -35,6 +36,13 @@ idUFSC e o app só monta a interface: não há banco de dados, os dados ficam no
   de grupo já feitas: a linha do tempo do Moodle ainda lista essas como pendentes, então cada uma é
   conferida no web service do próprio módulo (`mod_assign_get_submission_status`,
   `mod_quiz_get_user_attempts`, grupos do curso).
+
+- **Perfil** (toque no nome): matrícula, semestre, atualizar, avisos, instalar e sair, mais:
+  - *Como funciona*: explica, sem termos técnicos, como o app lê o Moodle e o CAGR, o que fica só
+    no celular e o que vai para o banco de dados.
+  - *Relatar um bug*: o estudante descreve o problema e o relato chega ao painel local (abaixo).
+    É anônimo: vai só o texto, o tipo de aparelho (iPhone, Android ou outro), se o app está
+    instalado, a versão (commit) e a tela aberta. O rascunho sobrevive a fechar a folha.
 
 ## Avisos
 
@@ -90,9 +98,19 @@ app (PWA) ──POST /api/login──▶ função Vercel (gru1) ──▶ idUFSC
   o id, nome ou matrícula) e as anotações cifradas com AES-256-GCM; as duas chaves derivam de
   `NOTES_SECRET`, que só existe no ambiente da Vercel. Entre aparelhos, cada falta é sincronizada
   separadamente (vale a versão mais recente, e uma falta apagada continua apagada).
+- **Uso** (`server/usage.ts`): como o app carrega as faltas anotadas sempre que abre, o
+  `/api/notes` também registra a visita: por conta (a mesma HMAC), o primeiro e o último acesso e
+  em quantos dias usou (grava no máximo a cada 5 minutos, mais uma vez por dia novo); e, por dia,
+  só a contagem de contas que abriram o app. Uma falha aqui nunca atrapalha as faltas.
+- **Relatos de bug** (`api/report.ts`): o token do Moodle só prova que quem envia está logado no
+  app (scripts não enchem a tabela) e não é guardado. O relato é cifrado como as faltas, preso ao
+  próprio id, sem nenhum identificador da conta; no máximo 100 por dia.
+- **Tabelas**: `server/schema.sql`.
 - **Privacidade**: a senha só passa pela função no login e não é salva nem registrada em log. O
   app guarda no aparelho (localStorage) o token do Moodle, a sessão web e os dados exibidos.
-  Sair apaga tudo do aparelho (as faltas anotadas continuam salvas na conta).
+  Sair apaga tudo do aparelho (as faltas anotadas continuam salvas na conta). No banco não há
+  nome, matrícula, e-mail nem o id do Moodle: só a HMAC do id, as faltas e os relatos cifrados e
+  as datas de uso.
 
 ## Rodar localmente
 
@@ -104,7 +122,14 @@ npm install
 npm run dev          # Vite + as funções de api/ servidas pelo próprio Vite
 npm run build        # typecheck + build de produção (dist/ com service worker)
 npm run lint
+npm run painel       # painel local de uso e relatos de bug: http://127.0.0.1:4545
 ```
+
+O **painel** (`panel/`) roda só neste computador: lê o Neon com o `.env.local`, decifra os relatos
+de bug com a `NOTES_SECRET` e mostra quantas contas usam o app, os acessos por dia (30 dias), o
+último acesso de cada conta (identificada só pelo começo da HMAC) e os relatos, que dá para marcar
+como resolvidos. Ele escuta só em `127.0.0.1`, recusa outros endereços (DNS rebinding) e só aceita
+ações vindas da própria página. Não vai para a Vercel (só `api/` vira função).
 
 Ícones do PWA: `npx pwa-assets-generator` (a partir de `public/logo.svg`).
 
