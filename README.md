@@ -1,15 +1,30 @@
 # Chamada
 
-App (PWA, mobile first) para acompanhar as disciplinas da UFSC: aulas do dia, presença em cada
-disciplina, simulador de faltas e prazos das atividades do Moodle. O estudante entra com o próprio
-idUFSC. Os dados do Moodle e do CAGR ficam só no aparelho; o banco (Neon) guarda apenas as faltas
-anotadas na aba Manual (criptografadas, e só até começar o semestre seguinte), um registro anônimo
-de uso e os relatos de bug.
+App (PWA, mobile first) para acompanhar as disciplinas da UFSC: aulas do dia, calendário (dia,
+semana e mês), presença em cada disciplina, simulador de faltas e prazos das atividades do Moodle. O
+estudante entra com o próprio idUFSC. Os dados do Moodle e do CAGR ficam só no aparelho; o banco
+(Neon) guarda apenas as faltas anotadas na aba Manual (criptografadas, e só até começar o semestre
+seguinte), um registro anônimo de uso e os relatos de bug.
 
 ## Telas
 
 - **Hoje**: aulas do dia (ou do próximo dia de aula) com a presença atual, quanto fica **se faltar**
   e **se for**, e os prazos pendentes da disciplina, do mais próximo ao mais distante.
+- **Calendário**: visões de dia, semana e mês inspiradas no Google Calendar, com setas que avançam
+  um dia, uma semana ou um mês, botão *Hoje* e gesto de deslizar para os lados. As aulas ficam na
+  grade de horários, com a cor da disciplina (no dia, o nome, a sala, a presença atual e, nas aulas
+  que já tiveram chamada, se foi presença ou falta; na semana e no mês, a sigla, como "BD II", com
+  uma legenda embaixo). As atividades ficam numa faixa no topo de cada dia: círculo aberto quando
+  pendente, alerta vermelho quando atrasada, check e riscada quando entregue. Uma linha vermelha
+  marca a hora atual. Tocar numa aula abre a disciplina; numa atividade, uma folha com o prazo, a
+  situação (pendente, atrasada, entregue, avaliada, encerrada sem entrega, grupo escolhido) e o
+  link para o Moodle; num dia do mês, a visão daquele dia. Dois filtros discretos: *Mostrar
+  entregues* (entregues, avaliadas e encerradas; datas de prova aparecem sempre) e *Frequência*,
+  uma faixa de presença do Moodle (com atalhos abaixo de 75%, 75 a 84% e 85% ou mais) que deixa só
+  as aulas das disciplinas dentro dela. Quando os filtros escondem algo do período, um aviso diz o
+  quê, com "Mostrar tudo". A visão escolhida e os filtros ficam salvos no aparelho. As aulas vêm
+  das sessões da Presença do Moodle, que pulam feriados e acabam com o semestre; a grade do CAGR só
+  preenche disciplinas sem sessões, e nunca fora do semestre (nada de aulas nas férias).
 - **Presença**
   - *Visão geral*: barra de presença por disciplina (vermelho abaixo de 75%, laranja de 75% a 84%,
     verde a partir de 85%), faltas atuais, faltas permitidas e próxima aula.
@@ -37,7 +52,8 @@ de uso e os relatos de bug.
   (pelo estudante ou pelo grupo), já avaliadas (provas em sala), encerradas para envio ou escolhas
   de grupo já feitas: a linha do tempo do Moodle ainda lista essas como pendentes, então cada uma é
   conferida no web service do próprio módulo (`mod_assign_get_submission_status`,
-  `mod_quiz_get_user_attempts`, grupos do curso).
+  `mod_quiz_get_user_attempts`, grupos do curso). Elas continuam chegando ao app, marcadas com o
+  motivo (`settled`), para o Calendário mostrar quando o estudante quiser.
 
 - **Perfil** (toque no nome): matrícula, semestre, atualizar, avisos, instalar e sair, mais:
   - *Como funciona*: explica, sem termos técnicos, como o app lê o Moodle e o CAGR, o que fica só

@@ -1,5 +1,5 @@
 import { cn } from 'cn'
-import { Bell, CalendarCheck2, ChartNoAxesColumnIncreasing, Check, ListTodo, type LucideIcon } from 'lucide-react'
+import { Bell, CalendarCheck2, CalendarDays, ChartNoAxesColumnIncreasing, Check, ListTodo, type LucideIcon } from 'lucide-react'
 import { AnimatePresence, motion, useAnimate } from 'motion/react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'wouter'
@@ -14,10 +14,11 @@ interface Tab {
   icon: LucideIcon
 }
 
-export type TabKey = 'hoje' | 'presenca' | 'atividades' | 'avisos'
+export type TabKey = 'hoje' | 'calendario' | 'presenca' | 'atividades' | 'avisos'
 
 const BASE_TABS: Tab[] = [
   { href: '/', key: 'hoje', label: 'Hoje', icon: CalendarCheck2 },
+  { href: '/calendario', key: 'calendario', label: 'Calendário', icon: CalendarDays },
   { href: '/presenca', key: 'presenca', label: 'Presença', icon: ChartNoAxesColumnIncreasing },
   { href: '/atividades', key: 'atividades', label: 'Atividades', icon: ListTodo },
 ]
@@ -26,6 +27,7 @@ const BASE_TABS: Tab[] = [
 const NEWS_TAB: Tab = { href: '/avisos', key: 'avisos', label: 'Avisos', icon: Bell }
 
 export function tabFromPath(path: string): TabKey {
+  if (path.startsWith('/calendario')) return 'calendario'
   if (path.startsWith('/presenca')) return 'presenca'
   if (path.startsWith('/atividades')) return 'atividades'
   if (path.startsWith('/avisos')) return 'avisos'

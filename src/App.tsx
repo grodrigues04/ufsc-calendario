@@ -38,9 +38,28 @@ function usePwaUpdate() {
 
 const Sheets = lazy(() => import('@/components/sheets'))
 
+// The calendar is its own chunk (it brings the slider of its filter): fetched while the browser is
+// idle, so the first tap on the tab does not wait for the network.
+const loadCalendar = () => import('@/screens/calendar')
+const CalendarScreen = lazy(() => loadCalendar().then((module) => ({ default: module.CalendarScreen })))
+
+function usePreloadCalendar() {
+  useEffect(() => {
+    const preload = () => void loadCalendar().catch(() => {})
+    if ('requestIdleCallback' in window) {
+      const handle = window.requestIdleCallback(preload, { timeout: 4000 })
+      return () => window.cancelIdleCallback(handle)
+    }
+    const timer = setTimeout(preload, 2500)
+    return () => clearTimeout(timer)
+  }, [])
+}
+
 /** Mounts the sheets when the browser is idle, or right away if one is requested before that. */
 function LazySheets() {
-  const requested = useUi((state) => state.disciplineId !== null || state.profileOpen || state.absence !== null)
+  const requested = useUi(
+    (state) => state.disciplineId !== null || state.activityId !== null || state.profileOpen || state.absence !== null,
+  )
   const [idle, setIdle] = useState(false)
   useEffect(() => {
     if ('requestIdleCallback' in window) {
@@ -87,7 +106,8 @@ function Shell() {
   const tab = tabFromPath(location)
   useNotificationLinks()
   useInboxLoader()
-  const positions = useRef<Record<TabKey, number>>({ hoje: 0, presenca: 0, atividades: 0, avisos: 0 })
+  usePreloadCalendar()
+  const positions = useRef<Record<TabKey, number>>({ hoje: 0, calendario: 0, presenca: 0, atividades: 0, avisos: 0 })
   const shownTab = useRef<TabKey>(tab)
   const previousTab = useRef<TabKey>(tab)
 
@@ -124,6 +144,11 @@ function Shell() {
           exit={{ opacity: 0, transition: { duration: 0.09 } }}
         >
           {tab === 'hoje' && <TodayScreen />}
+          {tab === 'calendario' && (
+            <Suspense fallback={null}>
+              <CalendarScreen />
+            </Suspense>
+          )}
           {tab === 'presenca' && <AttendanceScreen />}
           {tab === 'atividades' && <ActivitiesScreen />}
           {tab === 'avisos' && <NewsScreen />}

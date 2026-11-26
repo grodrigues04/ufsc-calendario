@@ -13,10 +13,14 @@ export interface AbsenceSheet {
 
 interface UiState {
   disciplineId: string | null
+  /** Activity (Moodle calendar event id) opened from the Calendário. */
+  activityId: number | null
   profileOpen: boolean
   absence: AbsenceSheet | null
   openDiscipline: (id: string) => void
   closeDiscipline: () => void
+  openActivity: (id: number) => void
+  closeActivity: () => void
   setProfileOpen: (open: boolean) => void
   openAbsence: (disciplineId: string, recordId?: string, presetDate?: string) => void
   closeAbsence: () => void
@@ -24,10 +28,13 @@ interface UiState {
 
 export const useUi = create<UiState>()((set) => ({
   disciplineId: null,
+  activityId: null,
   profileOpen: false,
   absence: null,
   openDiscipline: (disciplineId) => set({ disciplineId }),
   closeDiscipline: () => set({ disciplineId: null }),
+  openActivity: (activityId) => set({ activityId }),
+  closeActivity: () => set({ activityId: null }),
   setProfileOpen: (profileOpen) => set({ profileOpen }),
   openAbsence: (disciplineId, recordId, presetDate) =>
     set({ absence: { disciplineId, recordId: recordId ?? null, presetDate: presetDate ?? null, openedAt: Date.now() } }),

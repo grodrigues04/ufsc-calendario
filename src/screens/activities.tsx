@@ -99,8 +99,8 @@ export function ActivitiesScreen() {
               <PartyPopper className="size-7 text-muted-foreground" />
               <p className="font-semibold">Nada pendente por aqui</p>
               <p className="text-sm text-muted-foreground">
-                Atividades entregues, já avaliadas ou encerradas não aparecem aqui. Quando surgir algo novo com prazo no Moodle,
-                aparece nesta lista.
+                Atividades entregues, já avaliadas ou encerradas ficam só no Calendário. Quando surgir algo novo com prazo no
+                Moodle, aparece nesta lista.
               </p>
             </div>
           ) : (

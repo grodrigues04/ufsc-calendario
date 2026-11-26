@@ -116,6 +116,22 @@
   }
 }
 
+/* Calendar events, tinted with the discipline hue (the element sets --hue). */
+@layer components {
+  .event-tint {
+    --event-surface: oklch(0.93 0.045 var(--hue));
+    --event-text: oklch(0.33 0.09 var(--hue));
+    --event-accent: oklch(0.65 0.15 var(--hue));
+  }
+  @media (prefers-color-scheme: dark) {
+    .event-tint {
+      --event-surface: oklch(0.31 0.06 var(--hue));
+      --event-text: oklch(0.93 0.035 var(--hue));
+      --event-accent: oklch(0.7 0.14 var(--hue));
+    }
+  }
+}
+
 @utility tabular {
   font-variant-numeric: tabular-nums;
 }
