@@ -65,7 +65,9 @@ export function ActivitiesScreen() {
   const items = useMemo(() => activityItems(sync, views), [sync, views])
   const visible = courseId === null ? items : items.filter((item) => item.activity.courseId === courseId)
   const groups = useMemo(() => groupItems(visible, now), [visible, now])
-  const courseOptions = views.filter((view) => view.course && items.some((item) => item.activity.courseId === view.course!.id))
+  const courseOptions = views.filter(
+    (view) => view.course && items.some((item) => item.activity.pending && item.activity.courseId === view.course!.id),
+  )
   const pendingCount = items.filter((item) => item.activity.pending && item.due >= now).length
 
   return (

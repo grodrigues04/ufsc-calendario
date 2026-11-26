@@ -4,6 +4,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { parse } from 'node-html-parser'
 import type {
   Activity,
+  ActivitySettlement,
   AttendanceIssue,
   GroupSubmission,
   AttendanceSession,
@@ -270,7 +271,7 @@ export async function syncMoodle(
   })
 
   const [activities, groupSubmissions, attendanceRead] = await Promise.all([
-    pendingActivities(auth, buildActivities(calendar.events, actions, modules, modulesByCmid, currentIds, now), now, submissionStatus),
+    settleActivities(auth, buildActivities(calendar.events, actions, modules, modulesByCmid, currentIds, now), now, submissionStatus),
     readGroupSubmissions(assignments.courses, lastAccess, now, submissionStatus),
     earlyAttendance ?? readAttendance(auth, attendanceCmids),
   ])
@@ -447,6 +448,8 @@ function buildActivities(
     if (!currentIds.has(event.courseid)) continue
     const info = modules.get(`${module}:${event.instance}`)
     const action = actions.get(event.id)
+    // Module events count while Moodle expects an action; plain course events (exams) while upcoming.
+    const pending = module ? Boolean(action) : event.timestart >= now
     activities.set(event.id, {
       id: event.id,
       courseId: event.courseid,
@@ -455,8 +458,9 @@ function buildActivities(
       eventType: event.eventtype,
       dueAt: toIso(event.timestart),
       url: info?.url ?? action?.url ?? `${MOODLE_URL}/course/view.php?id=${event.courseid}`,
-      // Module events count while Moodle expects an action; plain course events (exams) while upcoming.
-      pending: module ? Boolean(action) : event.timestart >= now,
+      pending,
+      // The timeline leaves out what was delivered or completed, without saying which.
+      settled: pending ? undefined : module ? 'done' : 'past',
       overdue: action?.overdue ?? false,
       actionLabel: action?.action?.name ?? null,
       instance: event.instance ?? null,
@@ -506,20 +510,20 @@ const CLASS_GROUP_NAME = /^[A-Z]{3}\d{4}-\S+\s*\(\d{5}\)$/
  * each one with its module: submitted (by the student or the group), already graded (in-class
  * evaluations), closed for submissions, or a group choice the student already made.
  */
-async function isSettled(
+async function settlement(
   auth: MoodleAuth,
   activity: ActivityCandidate,
   now: number,
   submissionStatus: (assignId: number) => Promise<AssignStatus>,
-): Promise<boolean> {
+): Promise<ActivitySettlement | null> {
   const past = Date.parse(activity.dueAt) / 1000 < now
   if (activity.module === 'assign' && activity.instance) {
     const status = await submissionStatus(activity.instance)
     const attempt = status.lastattempt
-    if (attempt?.submission?.status === 'submitted' || attempt?.teamsubmission?.status === 'submitted') return true
-    if (attempt?.graded || attempt?.gradingstatus === 'graded' || status.feedback) return true
+    if (attempt?.submission?.status === 'submitted' || attempt?.teamsubmission?.status === 'submitted') return 'submitted'
+    if (attempt?.graded || attempt?.gradingstatus === 'graded' || status.feedback) return 'graded'
     // Before the due date "cannot edit" may only mean "not open yet".
-    return past && (attempt?.submissionsenabled === false || attempt?.canedit === false)
+    return past && (attempt?.submissionsenabled === false || attempt?.canedit === false) ? 'closed' : null
   }
   if (activity.module === 'quiz' && activity.instance) {
     const { attempts } = await callWs<{ attempts: unknown[] }>(auth.token, 'mod_quiz_get_user_attempts', {
@@ -527,7 +531,7 @@ async function isSettled(
       status: 'finished',
       includepreviews: 0,
     })
-    return attempts.length > 0
+    return attempts.length > 0 ? 'submitted' : null
   }
   if (activity.module === 'groupselect') {
     const groupingId = activity.cmid
@@ -539,13 +543,16 @@ async function isSettled(
       userid: auth.userId,
       groupingid: groupingId,
     })
-    return groups.some((group) => groupingId > 0 || !CLASS_GROUP_NAME.test(cleanText(group.name)))
+    return groups.some((group) => groupingId > 0 || !CLASS_GROUP_NAME.test(cleanText(group.name))) ? 'chosen' : null
   }
-  return false
+  return null
 }
 
-/** Keeps only what still needs the student (the Atividades tab hides delivered work). */
-async function pendingActivities(
+/**
+ * Marks what no longer needs the student and why. The app decides what to show: Atividades only
+ * lists pending work; the Calendário can also show what was delivered.
+ */
+async function settleActivities(
   auth: MoodleAuth,
   candidates: ActivityCandidate[],
   now: number,
@@ -555,24 +562,23 @@ async function pendingActivities(
     candidates.map(async (candidate) => {
       if (!candidate.pending || !candidate.module) return candidate
       // If a check fails, Moodle's own answer stands.
-      const settled = await isSettled(auth, candidate, now, submissionStatus).catch(() => false)
-      return settled ? { ...candidate, pending: false } : candidate
+      const settled = await settlement(auth, candidate, now, submissionStatus).catch(() => null)
+      return settled ? { ...candidate, pending: false, settled } : candidate
     }),
   )
-  return checked
-    .filter((candidate) => candidate.pending)
-    .map(({ id, courseId, name, module, eventType, dueAt, url, pending, overdue, actionLabel }) => ({
-      id,
-      courseId,
-      name,
-      module,
-      eventType,
-      dueAt,
-      url,
-      pending,
-      overdue,
-      actionLabel,
-    }))
+  return checked.map(({ id, courseId, name, module, eventType, dueAt, url, pending, settled, overdue, actionLabel }) => ({
+    id,
+    courseId,
+    name,
+    module,
+    eventType,
+    dueAt,
+    url,
+    pending,
+    ...(settled ? { settled } : {}),
+    overdue,
+    actionLabel,
+  }))
 }
 
 function cleanEventName(name: string): string {

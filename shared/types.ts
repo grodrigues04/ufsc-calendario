@@ -54,6 +54,13 @@ export interface Course {
   url: string
 }
 
+/**
+ * Why Moodle expects nothing else from the student: delivered (own or group submission, finished
+ * quiz), graded without a submission (in-class evaluations), closed for submissions, group already
+ * chosen, a plain course event that already happened, or "done" when Moodle only said so.
+ */
+export type ActivitySettlement = 'submitted' | 'graded' | 'closed' | 'chosen' | 'past' | 'done'
+
 export interface Activity {
   id: number // calendar event id
   courseId: number
@@ -63,6 +70,8 @@ export interface Activity {
   dueAt: string // ISO 8601
   url: string
   pending: boolean // Moodle still expects an action from the student
+  /** Set when `pending` is false (syncs from before the calendar only had pending activities). */
+  settled?: ActivitySettlement
   overdue: boolean
   actionLabel: string | null
 }

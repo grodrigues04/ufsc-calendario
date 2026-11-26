@@ -86,11 +86,13 @@ app (PWA) ──POST /api/login──▶ função Vercel (gru1) ──▶ idUFSC
   Se a UFSC mostrar o questionário do Collecta, o app toca em "Responder mais tarde" (nunca em
   "Não tenho interesse", que é irreversível) e avisa o estudante.
 - **Sincronização** (`api/sync.ts`): usa só o token do Moodle, sem senha. Atividades vêm dos web
-  services (calendário + linha do tempo). As presenças vêm da página da atividade Presença
-  (`mod/attendance/view.php`, só leitura), porque o plugin não expõe web services ao app; a sessão
-  web é aberta com o autologin do app do Moodle (o Moodle limita a 1 a cada 6 minutos). Quando a
-  sessão salva não funciona ou uma página não abre (sessão vencida, erro, aviso do Moodle), o
-  servidor entra de novo no Moodle (novo autologin, sem senha), salva a sessão nova e tenta outra
+  services (calendário + linha do tempo), todas as do semestre: `pending` diz se o Moodle ainda
+  espera algo do estudante e, quando não espera, `settled` diz por quê (entregue, avaliada,
+  encerrada, grupo escolhido, evento que já passou). As presenças vêm da página da atividade
+  Presença (`mod/attendance/view.php`, só leitura), porque o plugin não expõe web services ao app; a
+  sessão web é aberta com o autologin do app do Moodle (o Moodle limita a 1 a cada 6 minutos).
+  Quando a sessão salva não funciona ou uma página não abre (sessão vencida, erro, aviso do Moodle),
+  o servidor entra de novo no Moodle (novo autologin, sem senha), salva a sessão nova e tenta outra
   vez. Se ainda assim uma disciplina não for lida, ela vem em `attendanceFailed`: o app mostra nela
   o aviso "Não consegui ler a presença no Moodle", com a leitura anterior (e de quando ela é) e um
   botão para tentar de novo. "Sem lista de presença" só aparece quando o Moodle não tem a atividade.
